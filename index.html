@@ -1898,61 +1898,98 @@ function Level1() {
     /* ============================================================
        ФАЗА 1. ПАЗЛ
        ============================================================ */
-      startPuzzle: function () {
-        const cfg = this.PUZZLE[this.sub];
-        const cols = cfg.cols, rows = cfg.rows;
-        const noteSize = 320;
-        const sw = noteSize / cols;
-        const sh = noteSize / rows;
-        const startX = (W - noteSize) / 2;
-        const startY = 82;
+    startPuzzle: function () {
+      const cfg = this.PUZZLE[this.sub];
+      const cols = cfg.cols, rows = cfg.rows;
 
-        this.pageCanvas = this.buildPageCanvas(noteSize, noteSize, this.sub);
+      const noteSize = 320;
+      const sw = noteSize / cols;
+      const sh = noteSize / rows;
+      const startX = (W - noteSize) / 2;
+      const startY = 145;
 
-        this.slots = [];
-        this.pieces = [];
-        this.placedCount = 0;
+      this.pageCanvas = this.buildPageCanvas(noteSize, noteSize, this.sub);
 
-        const order = [];
-        for (let i = 0; i < cols * rows; i++) order.push(i);
-        for (let i = order.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
-        }
+      this.slots = [];
+      this.pieces = [];
+      this.dragging = null;
 
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            this.slots.push({
-              idx: r * cols + c,
-              x: startX + c * sw,
-              y: startY + r * sh,
-              w: sw, h: sh,
-              cols: cols, rows: rows,
-              placed: false
-            });
-          }
-        }
+      const order = [];
+      for (let i = 0; i < cols * rows; i++) order.push(i);
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+      }
 
-        // кусочки в панели снизу — уменьшены, чтобы влезла подсказка
-        const trayW = 80, trayH = 80, gap = 6;
-        const totalW = order.length * (trayW + gap) - gap;
-        const trayStartX = (W - totalW) / 2;
-        const trayY = 410;
-
-        for (let i = 0; i < order.length; i++) {
-          const px = trayStartX + i * (trayW + gap);
-          this.pieces.push({
-            idx: order[i],
-            x: px, y: trayY,
-            w: trayW, h: trayH,
-            trayX: px, trayY: trayY,
-            trayW: trayW, trayH: trayH,
-            slotW: sw, slotH: sh,
+      // слоты
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          this.slots.push({
+            idx: r * cols + c,
+            x: startX + c * sw,
+            y: startY + r * sh,
+            w: sw, h: sh,
             cols: cols, rows: rows,
-            placed: false
+            piece: null
           });
         }
-      },
+      }
+
+      // кусочки — центр (cx, cy), реальный размер (w, h)
+      for (let i = 0; i < order.length; i++) {
+        this.pieces.push({
+          idx: order[i],
+          cx: 0, cy: 0,
+          w: sw, h: sh,
+          scale: 0.72,
+          rot: 0,
+          cols: cols, rows: rows,
+          slotIdx: -1
+        });
+      }
+
+      // раскладка по сторонам
+      const half = Math.ceil(this.pieces.length / 2);
+      const left = this.pieces.slice(0, half);
+      const right = this.pieces.slice(half);
+      this.layoutZone(left,  40, 80, 240, 440);
+      this.layoutZone(right, 680, 80, 240, 440);
+    },
+
+    layoutZone: function (items, zoneX, zoneY, zoneW, zoneH) {
+      if (items.length === 0) return;
+      const sample = items[0];
+      const dh = sample.h * sample.scale;
+      const gap = 14;
+      let totalH = items.length * dh + (items.length - 1) * gap;
+      let realGap = gap;
+      if (totalH > zoneH) {
+        realGap = Math.max(4, (zoneH - items.length * dh) / Math.max(1, items.length - 1));
+        totalH = items.length * dh + (items.length - 1) * realGap;
+      }
+      const startY = zoneY + (zoneH - totalH) / 2;
+      const baseCx = zoneX + zoneW / 2;
+      for (let i = 0; i < items.length; i++) {
+        items[i].cx = baseCx + (Math.random() - 0.5) * 30;
+        items[i].cy = startY + i * (dh + realGap) + dh / 2;
+        items[i].rot = (Math.random() - 0.5) * 0.5;   // ±14°
+      }
+    },
+
+    checkPuzzleWin: function () {
+      let filled = 0;
+      let correct = 0;
+      for (let s of this.slots) {
+        if (s.piece) {
+          filled++;
+          if (s.piece.idx === s.idx) correct++;
+        }
+      }
+      if (filled === this.slots.length && correct === this.slots.length) {
+        const self = this;
+        setTimeout(function () { self.goNext(); }, 600);
+      }
+    },
 
       buildPageCanvas: function (w, h, variant) {
         const c = document.createElement('canvas');
@@ -2202,7 +2239,6 @@ function Level1() {
           ch: allParts[i],
           x: px, y: py,
           w: 64, h: 64,
-          placed: false,
           homeX: px, homeY: py
         });
       }
@@ -2213,7 +2249,9 @@ function Level1() {
       const done = this.phase * 3 + this.sub;
       let frac = 0;
       if (this.phase === 0 && this.slots.length) {
-        frac = this.placedCount / this.slots.length;
+        let filled = 0;
+        for (let s of this.slots) if (s.piece) filled++;
+        frac = filled / this.slots.length;
       } else if (this.phase === 1 && this.targetWord.length) {
         frac = this.nextLetterIndex / this.targetWord.length;
       } else if (this.phase === 2 && this.formulaSlots.length) {
@@ -2312,22 +2350,34 @@ function Level1() {
     },
 
     /* ---------- КЛИК ---------- */
+    
     onPointerDown: function (x, y) {
       if (this.transT > 0 || this.done) return;
 
       // ФАЗА 1 — взять кусочек
       if (this.phase === 0) {
-        for (let p of this.pieces) {
-          if (p.placed) continue;
-          if (x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) {
+        for (let i = this.pieces.length - 1; i >= 0; i--) {
+          const p = this.pieces[i];
+          const hw = p.w * p.scale / 2 + 4;
+          const hh = p.h * p.scale / 2 + 4;
+          if (x >= p.cx - hw && x <= p.cx + hw &&
+              y >= p.cy - hh && y <= p.cy + hh) {
+
+            if (p.slotIdx >= 0) {
+              this.slots[p.slotIdx].piece = null;
+              p.slotIdx = -1;
+            }
+
+            // наверх
+            this.pieces.splice(i, 1);
+            this.pieces.push(p);
+
             this.dragging = p;
-            // увеличиваем до размера слота и центрируем на курсоре
-            p.w = p.slotW;
-            p.h = p.slotH;
-            p.x = x - p.w / 2;
-            p.y = y - p.h / 2;
-            this.dragOff.x = p.w / 2;
-            this.dragOff.y = p.h / 2;
+            // при подъёме — увеличиваем и выпрямляем
+            p.scale = 1;
+            p.rot = 0;
+            this.dragOff.x = x - p.cx;
+            this.dragOff.y = y - p.cy;
             playSound('jump', 0.3);
             return;
           }
@@ -2380,8 +2430,8 @@ function Level1() {
       this.pointerX = x;
       this.pointerY = y;
       if (this.dragging) {
-        this.dragging.x = x - this.dragOff.x;
-        this.dragging.y = y - this.dragOff.y;
+        this.dragging.cx = x - this.dragOff.x;
+        this.dragging.cy = y - this.dragOff.y;
       }
     },
 
@@ -2393,41 +2443,39 @@ function Level1() {
         const p = this.dragging;
         this.dragging = null;
 
-        const pCx = p.x + p.w / 2;
-        const pCy = p.y + p.h / 2;
-        let dropped = false;
-
+        // попытка снапа в свободный слот
         for (let s of this.slots) {
-          if (s.placed) continue;
+          if (s.piece) continue;
           const sCx = s.x + s.w / 2;
           const sCy = s.y + s.h / 2;
-          if (Math.abs(pCx - sCx) < s.w / 2 + 20 &&
-              Math.abs(pCy - sCy) < s.h / 2 + 20) {
-            if (p.idx === s.idx) {
-              p.x = s.x; p.y = s.y;
-              p.w = s.w; p.h = s.h;
-              p.placed = true;
-              s.placed = true;
-              this.placedCount++;
-              playSound('collect', 0.6);
-              if (this.placedCount >= this.slots.length) {
-                const self = this;
-                setTimeout(function () { self.goNext(); }, 500);
-              }
-            } else {
-              p.x = p.trayX; p.y = p.trayY;
-              p.w = p.trayW; p.h = p.trayH;
-              playSound('hurt', 0.3);
-              damage();
-            }
-            dropped = true;
-            break;
+          if (Math.abs(p.cx - sCx) < s.w / 2 + 30 &&
+              Math.abs(p.cy - sCy) < s.h / 2 + 30) {
+            p.cx = sCx;
+            p.cy = sCy;
+            p.scale = 1;
+            p.rot = 0;
+            s.piece = p;
+            p.slotIdx = s.idx;
+            playSound('collect', 0.5);
+            this.checkPuzzleWin();
+            return;
           }
         }
-        if (!dropped) {
-          p.x = p.trayX; p.y = p.trayY;
-          p.w = p.trayW; p.h = p.trayH;
-        }
+
+        // остаётся где положил: уменьшается, чуть наклоняется
+        p.scale = 0.72;
+        p.rot = (Math.random() - 0.5) * 0.4;
+
+        // мягкий ограничитель по краям (чуть-чуть выходить можно)
+        const hw = p.w * p.scale / 2;
+        const hh = p.h * p.scale / 2;
+        const margin = 18;         // разрешаем выходить на 18px
+        const minX = hw - margin;
+        const maxX = W - hw + margin;
+        const minY = 70 + hh - 12; // под HUD, но чуть-чуть заходить можно
+        const maxY = H - hh + margin;
+        p.cx = Math.max(minX, Math.min(maxX, p.cx));
+        p.cy = Math.max(minY, Math.min(maxY, p.cy));
         return;
       }
 
@@ -2551,38 +2599,30 @@ function Level1() {
     },
 
     drawPuzzle: function (c) {
+      // пустые слоты — рамки
       for (let s of this.slots) {
-        if (s.placed) {
-          const sw = this.pageCanvas.width / s.cols;
-          const sh = this.pageCanvas.height / s.rows;
-          const sx = (s.idx % s.cols) * sw;
-          const sy = Math.floor(s.idx / s.cols) * sh;
-          c.drawImage(this.pageCanvas, sx, sy, sw, sh, s.x, s.y, s.w, s.h);
-          c.strokeStyle = 'rgba(120,100,70,0.35)';
-          c.lineWidth = 1;
-          c.strokeRect(s.x, s.y, s.w, s.h);
-        } else {
-          c.fillStyle = 'rgba(255,240,200,0.05)';
-          c.fillRect(s.x, s.y, s.w, s.h);
-          c.strokeStyle = 'rgba(160,180,220,0.30)';
-          c.setLineDash([6, 4]);
-          c.lineWidth = 2;
-          c.strokeRect(s.x + 1, s.y + 1, s.w - 2, s.h - 2);
-          c.setLineDash([]);
-        }
+        if (s.piece) continue;
+        c.fillStyle = 'rgba(255,240,200,0.05)';
+        c.fillRect(s.x, s.y, s.w, s.h);
+        c.strokeStyle = 'rgba(160,180,220,0.30)';
+        c.setLineDash([6, 4]);
+        c.lineWidth = 2;
+        c.strokeRect(s.x + 1, s.y + 1, s.w - 2, s.h - 2);
+        c.setLineDash([]);
       }
 
-      for (let p of this.pieces) {
+      // все кусочки в порядке массива (последний — сверху)
+      for (let i = 0; i < this.pieces.length; i++) {
+        const p = this.pieces[i];
         if (p === this.dragging) continue;
-        if (p.placed) continue;
         this.drawPieceCrop(c, p, false);
       }
-      if (this.dragging && this.phase === 0) {
+      if (this.dragging) {
         this.drawPieceCrop(c, this.dragging, true);
       }
 
       if (this.hintT > 0) {
-        drawBottomHint(c, 'Перетащи кусочки на их места — рисунок соберётся сам',
+        drawBottomHint(c, 'Собери картинку — кусочки можно класть куда хочешь',
                        this.hintT, '#7ff0ff');
       }
     },
@@ -2593,26 +2633,33 @@ function Level1() {
       const sx = (p.idx % p.cols) * sw;
       const sy = Math.floor(p.idx / p.cols) * sh;
 
+      const dw = p.w * p.scale;
+      const dh = p.h * p.scale;
+
       c.save();
+      c.translate(p.cx, p.cy);
+      if (p.rot) c.rotate(p.rot);
+
       if (lifted) {
         c.shadowColor = 'rgba(0,0,0,0.85)';
         c.shadowBlur = 22;
         c.shadowOffsetY = 8;
       } else {
-        c.shadowColor = 'rgba(0,0,0,0.45)';
-        c.shadowBlur = 8;
-        c.shadowOffsetY = 3;
+        c.shadowColor = 'rgba(0,0,0,0.5)';
+        c.shadowBlur = 10;
+        c.shadowOffsetY = 4;
       }
       c.fillStyle = '#f4eedd';
-      c.fillRect(p.x, p.y, p.w, p.h);
+      c.fillRect(-dw/2, -dh/2, dw, dh);
       c.shadowBlur = 0;
       c.shadowOffsetY = 0;
 
-      c.drawImage(this.pageCanvas, sx, sy, sw, sh, p.x, p.y, p.w, p.h);
+      c.drawImage(this.pageCanvas, sx, sy, sw, sh,
+                  -dw/2, -dh/2, dw, dh);
 
-      c.strokeStyle = lifted ? '#7ff0ff' : 'rgba(120,100,70,0.7)';
+      c.strokeStyle = lifted ? '#7ff0ff' : 'rgba(120,100,70,0.6)';
       c.lineWidth = lifted ? 3 : 2;
-      c.strokeRect(p.x, p.y, p.w, p.h);
+      c.strokeRect(-dw/2, -dh/2, dw, dh);
       c.restore();
     },
 
