@@ -286,6 +286,17 @@ h1 span {
 .lvl.done {
   border-color: var(--c-green);
 }
+.lvl.perfect {
+  border-color: var(--c-gold);
+  box-shadow: 6px 6px 0 var(--c-shadow), 0 0 22px rgba(255, 205, 117, 0.4);
+}
+.lvl.perfect .lvl-state { color: var(--c-gold); }
+.lvl-hearts {
+  font-size: 14px;
+  letter-spacing: 3px;
+  text-align: center;
+  margin-top: 2px;
+}
 .lvl-num {
   font-size: 10px;
   letter-spacing: 2px;
@@ -415,6 +426,34 @@ h1 span {
   color: var(--c-accent);
   animation: storyPulse 1.4s infinite;
   flex-shrink: 0;
+}
+.story-skip {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: 20;
+  padding: 10px 22px;
+  font-family: 'PixelText', monospace;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--c-text-dim);
+  background: rgba(10, 13, 24, 0.75);
+  border: 3px solid var(--c-panel);
+  border-radius: 0;
+  cursor: pointer;
+  transition: none;
+  box-shadow: 4px 4px 0 var(--c-shadow);
+}
+.story-skip:hover {
+  color: var(--c-text);
+  border-color: var(--c-accent);
+  background: rgba(41, 54, 111, 0.95);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--c-shadow);
+}
+.story-skip:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--c-shadow);
 }
 @keyframes storyPulse {
   0%, 100% { opacity: 0.35; transform: translateX(0); }
@@ -661,6 +700,9 @@ h1 span {
     <!-- ============ ЭКРАН 5: СЮЖЕТ (визуальная новелла) ============ -->
     <div class="screen" id="storyScreen">
       <canvas id="storyCv" width="960" height="540"></canvas>
+      <button class="story-skip" id="storySkip" title="Пропустить всё (пробел)">
+        ПРОПУСТИТЬ ▸▸
+      </button>
       <div class="story-box" id="storyBox">
         <p class="story-text" id="storyText"></p>
         <div class="story-arrow" id="storyArrow">▸</div>
@@ -687,17 +729,20 @@ const G = {
   inStory: false,
   seenStory: {},
   hearts: 3,
+  lostThisPhase: false,          // потерял ли сердце в текущей фазе
+  lostThisLevel: false,          // потерял ли сердце за весь заход уровня
+  levelPerfect: {},              // { 'l1': true, 'l2': false, ... }
   fragments: 0,
   currentLevel: 1,
   maxUnlocked: 1,
   completed: [false, false, false, false],
-  paused: false,          // сюжетная пауза (смерть/победа/история)
-  menuPaused: false,      // пауза из меню
+  paused: false,
+  menuPaused: false,
   flash: 0,
   invuln: 0,
   keys: {},
   time: 0,
-  achievements: []        // массив id разблокированных ачивок
+  achievements: []
 };
 
 const LEVEL_META = [
@@ -794,7 +839,17 @@ const ACH_DEFS = [
   { id: 'first',  name: 'ПЕРВЫЙ ШАГ',  desc: 'Собрано 3 осколка смелости',  min: 3 },
   { id: 'brave',  name: 'СМЕЛЬЧАК',    desc: 'Собрано 6 осколков смелости', min: 6 },
   { id: 'hero',   name: 'ХРАБРЕЦ',     desc: 'Собрано 10 осколков смелости', min: 10 },
-  { id: 'legend', name: 'ЛЕГЕНДА',     desc: 'Собрано 15 осколков смелости', min: 15 }
+  { id: 'legend', name: 'ЛЕГЕНДА',     desc: 'Собрано 15 осколков смелости', min: 15 },
+  { id: 'perfect_l1', name: 'БЕЗУПРЕЧНО I',
+    desc: 'Сон «Конспект» — без потерь', kind: 'level_perfect', level: 1 },
+  { id: 'perfect_l2', name: 'БЕЗУПРЕЧНО II',
+    desc: 'Сон «Автобус» — без потерь', kind: 'level_perfect', level: 2 },
+  { id: 'perfect_l3', name: 'БЕЗУПРЕЧНО III',
+    desc: 'Сон «Пин-код» — без потерь', kind: 'level_perfect', level: 3 },
+  { id: 'perfect_l4', name: 'БЕЗУПРЕЧНО IV',
+    desc: 'Сон «Зачётка» — без потерь', kind: 'level_perfect', level: 4 },
+  { id: 'flawless', name: 'ИДЕАЛЬНЫЙ СОН',
+    desc: 'Все 4 сна пройдены без потерь', kind: 'all_perfect' }
 ];
 
 /* Подсказки для каждого уровня */
@@ -953,6 +1008,7 @@ function drawBackground(c, name, top, bottom) {
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
 }
+
 function wrapText(c, text, cx, y, maxW, lh) {
   const words = String(text).split(' ');
   const lines = [];
@@ -966,6 +1022,37 @@ function wrapText(c, text, cx, y, maxW, lh) {
   if (line) lines.push(line);
   for (let i = 0; i < lines.length; i++) c.fillText(lines[i], cx, y + i * lh);
   return lines.length;
+}
+
+/**
+ * Универсальная подсказка снизу — с тёмной плашкой.
+ * alpha — 0..1 (для плавного исчезновения)
+ * color — цвет текста и рамки (по умолчанию голубой)
+ */
+function drawBottomHint(c, text, alpha, color) {
+  if (alpha <= 0) return;
+  c.save();
+  c.globalAlpha = Math.min(1, alpha);
+  c.font = 'bold 16px "PixelText", Verdana';
+  const tw = c.measureText(text).width;
+  const padX = 24;
+  const bh = 32;
+  const bw = tw + padX * 2;
+  const bx = (W - bw) / 2;
+  const by = H - bh - 12;               // 496..528
+
+  c.fillStyle = 'rgba(6,10,24,0.88)';
+  rr(c, bx, by, bw, bh, 10); c.fill();
+  c.strokeStyle = color || 'rgba(115,240,247,0.55)';
+  c.lineWidth = 2;
+  rr(c, bx, by, bw, bh, 10); c.stroke();
+
+  c.fillStyle = color || '#cfe0ff';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText(text, W / 2, by + bh / 2 + 1);
+  c.textBaseline = 'alphabetic';
+  c.restore();
 }
 
 /* ---------- Кот ---------- */
@@ -1307,12 +1394,25 @@ function hideStory() {
   storyFinalCb = null;
   if (cb) cb();
 }
+function skipStory() {
+  if (!G.inStory) return;
+  // останавливаем печать, если идёт
+  clearInterval(storyTypeTimer);
+  storyIsTyping = false;
+  // пропускаем все оставшиеся слайды
+  storyIndex = storySlides.length;
+  hideStory();
+}
 
 // Клик по сюжетному экрану
 document.getElementById('storyScreen').addEventListener('click', function () {
   if (G.inStory) advanceStory();
 });
 
+document.getElementById('storySkip').addEventListener('click', function (e) {
+  e.stopPropagation();       // чтобы клик не ушёл в advanceStory
+  skipStory();
+});
 /* Подсказка */
 function showHint() {
   const text = LEVEL_HINTS[G.currentLevel];
@@ -1410,6 +1510,12 @@ window.addEventListener('keydown', function (e) {
     if (G.mode === 'game') { e.preventDefault(); togglePause(); }
     return;
   }
+  // пропустить сюжет — клавиша S или Пробел во время сюжета
+  if ((e.code === 'KeyS' || e.code === 'Space') && G.inStory) {
+    e.preventDefault();
+    skipStory();
+    return;
+  }
   // подсказка
   if (e.code === 'KeyH') {
     if (G.mode === 'game' && !G.paused && !G.menuPaused) {
@@ -1453,12 +1559,39 @@ function onPointerDown(clientX, clientY) {
 cv.addEventListener('mousedown', function (e) {
   onPointerDown(e.clientX, e.clientY);
 });
+
 cv.addEventListener('touchstart', function (e) {
   if (e.touches.length > 0) {
     e.preventDefault();
     onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
   }
 }, { passive: false });
+cv.addEventListener('mousemove', function (e) {
+  if (G.mode !== 'game' || !activeLevel) return;
+  const p = canvasPos(cv, e.clientX, e.clientY);
+  if (activeLevel.onPointerMove) activeLevel.onPointerMove(p.x, p.y);
+});
+
+cv.addEventListener('mouseup', function (e) {
+  if (G.mode !== 'game' || !activeLevel) return;
+  const p = canvasPos(cv, e.clientX, e.clientY);
+  if (activeLevel.onPointerUp) activeLevel.onPointerUp(p.x, p.y);
+});
+
+cv.addEventListener('touchmove', function (e) {
+  if (e.touches.length > 0 && G.mode === 'game' && activeLevel) {
+    e.preventDefault();
+    const p = canvasPos(cv, e.touches[0].clientX, e.touches[0].clientY);
+    if (activeLevel.onPointerMove) activeLevel.onPointerMove(p.x, p.y);
+  }
+}, { passive: false });
+
+cv.addEventListener('touchend', function (e) {
+  if (G.mode === 'game' && activeLevel && e.changedTouches.length > 0) {
+    const p = canvasPos(cv, e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    if (activeLevel.onPointerUp) activeLevel.onPointerUp(p.x, p.y);
+  }
+});
 
 /* ============================================================
    8. ОБЩИЕ ИГРОВЫЕ ФУНКЦИИ
@@ -1466,25 +1599,37 @@ cv.addEventListener('touchstart', function (e) {
 
 function damage() {
   if (G.invuln > 0) return false;
+  if (G.hearts <= 0) return false;
+  if (activeLevel && activeLevel.allowsDamage &&
+      !activeLevel.allowsDamage()) return false;
+
   G.hearts--;
   G.flash = 1;
   G.invuln = 1.5;
+  G.lostThisPhase = true;
+  G.lostThisLevel = true;
   playSound('hurt', 0.7);
   if (G.hearts <= 0) {
     G.hearts = 0;
-    failLevel();
+    failPhase();
   }
   return true;
 }
 
-function failLevel() {
+function failPhase() {
   if (G.paused) return;
   G.paused = true;
   const n = G.currentLevel;
   setTimeout(function () {
     showStory(STORY.fail, function () {
       G.hearts = 3;
-      goLevel(n, true);
+      G.lostThisPhase = false;
+      if (activeLevel && activeLevel.restartFromCheckpoint) {
+        G.paused = false;
+        activeLevel.restartFromCheckpoint();
+      } else {
+        goLevel(n, true);
+      }
     });
   }, 420);
 }
@@ -1497,25 +1642,62 @@ function levelComplete() {
   G.completed[n - 1] = true;
   if (n + 1 <= 4 && G.maxUnlocked < n + 1) G.maxUnlocked = n + 1;
 
-const afterKeys = ['', 'after1', 'after2', 'after3', 'after4'];
-setTimeout(function () {
-  showStory(STORY[afterKeys[n]], function () {
-    if (n === 4) {
-      fadeTo(function () {
-        G.mode = 'end';
-        showScreen('endScreen');
-        prepareEnd();
-      });
-    } else {
-      fadeTo(function () {
-        G.mode = 'map';
-        showScreen('mapScreen');
-        updateMap();
-      });
+  // Идеальное прохождение?
+  if (!G.lostThisLevel) {
+    const key = 'l' + n;
+    if (!G.levelPerfect[key]) {
+      G.levelPerfect[key] = true;
+      setTimeout(function () { checkPerfectLevel(n); }, 250);
     }
-  });
-}, 480);
+  }
+
+  const afterKeys = ['', 'after1', 'after2', 'after3', 'after4'];
+  setTimeout(function () {
+    showStory(STORY[afterKeys[n]], function () {
+      if (n === 4) {
+        fadeTo(function () {
+          G.mode = 'end';
+          showScreen('endScreen');
+          prepareEnd();
+        });
+      } else {
+        fadeTo(function () {
+          G.mode = 'map';
+          showScreen('mapScreen');
+          updateMap();
+        });
+      }
+    });
+  }, 480);
 }
+
+function checkPerfectLevel(n) {
+  for (let i = 0; i < ACH_DEFS.length; i++) {
+    const a = ACH_DEFS[i];
+    if (a.kind === 'level_perfect' && a.level === n &&
+        G.achievements.indexOf(a.id) === -1) {
+      G.achievements.push(a.id);
+      showAchievement(a);
+      break;
+    }
+  }
+  // Проверка идеального всех
+  let all = true;
+  for (let i = 1; i <= 4; i++) {
+    if (!G.levelPerfect['l' + i]) { all = false; break; }
+  }
+  if (all) {
+    for (let i = 0; i < ACH_DEFS.length; i++) {
+      const a = ACH_DEFS[i];
+      if (a.kind === 'all_perfect' && G.achievements.indexOf(a.id) === -1) {
+        G.achievements.push(a.id);
+        setTimeout(function () { showAchievement(a); }, 1400);
+        break;
+      }
+    }
+  }
+}
+
 function goLevel(n, isRestart) {
   const levelStoryKey = 'level' + n;
   const storyText = STORY[levelStoryKey];
@@ -1526,6 +1708,9 @@ function goLevel(n, isRestart) {
       G.mode = 'game';
       G.paused = false;
       G.menuPaused = false;
+      G.hearts = 3;               // ← сброс сердец
+      G.lostThisPhase = false;    // ← новая фаза
+      G.lostThisLevel = false;    // ← новый заход уровня
       pauseOverlay.classList.remove('show');
       G.flash = 0;
       G.invuln = 0;
@@ -1553,21 +1738,35 @@ function goLevel(n, isRestart) {
 
 function drawHUD(c) {
   if (!activeLevel) return;
+
   c.fillStyle = 'rgba(6,10,24,.58)';
   c.fillRect(0, 0, W, 66);
 
-  for (let i = 0; i < 3; i++) {
-    const x = 40 + i * 42, y = 33;
-    if (i < G.hearts) {
-      c.fillStyle = '#ff4d6d';
-      heartPath(c, x, y, 22); c.fill();
-      c.fillStyle = 'rgba(255,255,255,.35)';
-      c.beginPath(); c.ellipse(x - 5, y - 6, 3.5, 2.5, -0.5, 0, 7); c.fill();
-    } else {
-      c.strokeStyle = 'rgba(255,110,140,.45)';
-      c.lineWidth = 2;
-      heartPath(c, x, y, 22); c.stroke();
+  // Сердца — только если уровень/фаза позволяет урон
+  const showHearts = !activeLevel.allowsDamage ||
+                     activeLevel.allowsDamage();
+  if (showHearts) {
+    for (let i = 0; i < 3; i++) {
+      const x = 40 + i * 42, y = 33;
+      if (i < G.hearts) {
+        c.fillStyle = '#ff4d6d';
+        heartPath(c, x, y, 22); c.fill();
+        c.fillStyle = 'rgba(255,255,255,.35)';
+        c.beginPath(); c.ellipse(x - 5, y - 6, 3.5, 2.5, -0.5, 0, 7); c.fill();
+      } else {
+        c.strokeStyle = 'rgba(255,110,140,.45)';
+        c.lineWidth = 2;
+        heartPath(c, x, y, 22); c.stroke();
+      }
     }
+  } else {
+    // тихая иконка «безопасная фаза»
+    c.fillStyle = 'rgba(115,240,247,.55)';
+    c.font = 'bold 15px Verdana';
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    c.fillText('☾ безопасный сон', 40, 34);
+    c.textBaseline = 'alphabetic';
   }
 
   c.fillStyle = '#7ff0ff';
@@ -1577,14 +1776,13 @@ function drawHUD(c) {
   c.textAlign = 'left';
   c.textBaseline = 'middle';
   c.fillText('× ' + G.fragments, 216, 34);
+  c.textBaseline = 'alphabetic';
 
-  // достижения
   c.textAlign = 'right';
   c.fillStyle = '#ffd873';
   c.font = 'bold 16px Verdana';
   c.fillText('★ ' + G.achievements.length + ' / ' + ACH_DEFS.length, W - 66, 34);
 
-  // название уровня
   c.textAlign = 'center';
   c.fillStyle = '#9fb6ff';
   c.font = '15px Verdana';
@@ -1600,227 +1798,967 @@ function drawHUD(c) {
     c.fillStyle = g;
     rr(c, W / 2 - 140, 38, 280 * pr, 10, 5); c.fill();
   }
-  c.textBaseline = 'alphabetic';
 }
 
 /* ============================================================
-   10. УРОВЕНЬ 1 — «КОНСПЕКТ» + ЛЕТАЮЩИЕ ОСКОЛКИ
+   10. УРОВЕНЬ 1 — «КОНСПЕКТ» (3 фазы × 3 подуровня)
    ============================================================ */
 
 function Level1() {
   return {
     name: 'Конспект', subtitle: 'страх забыть всё',
-    papers: [], fragments: [], particles: [],
-    collected: 0, need: 10,
-    spawnT: 0, fragSpawnT: 1.2,
-    t: 0, done: false, hintT: 4,
 
+    /* ---------- ОБЩЕЕ СОСТОЯНИЕ ---------- */
+    phase: 0,      // 0, 1, 2
+    sub: 0,        // 0, 1, 2
+    t: 0,
+    hintT: 4,
+    done: false,
+    allowsDamage: function () {
+      return this.phase > 0;    // только фазы 2 и 3 (индекс 1 и 2)
+    },
+
+    restartFromCheckpoint: function () {
+      this.sub = 0;             // откат к началу текущей фазы
+      this.dragging = null;
+      this.transT = 1.2;
+      this.transText = 'ФАЗА ' + (this.phase + 1) + ' — ЗАНОВО';
+      const self = this;
+      setTimeout(function () {
+        self.startSubLevel();
+      }, 900);
+    },
+
+    /* Переход между подуровнями */
+    transT: 0,
+    transText: '',
+
+    /* Drag */
+    dragging: null,
+    dragOff: { x: 0, y: 0 },
+    pointerX: -200,
+    pointerY: -200,
+
+    /* Фаза 1 — пазл */
+    pieces: [],
+    slots: [],
+    placedCount: 0,
+
+    /* Фаза 2 — слово */
+    targetWord: '',
+    letters: [],
+    letterSlots: [],
+    nextLetterIndex: 0,
+
+    /* Фаза 3 — формулы */
+    formulaSlots: [],
+    formulaElements: [],
+    formulaPlaced: 0,
+
+    /* ---------- КОНФИГИ ---------- */
+    PUZZLE: [
+      { cols: 2, rows: 2 },   // 1.1 — 4 части
+      { cols: 3, rows: 2 },   // 1.2 — 6 частей
+      { cols: 3, rows: 3 }    // 1.3 — 9 частей
+    ],
+
+    WORDS: [
+      { word: 'ЛЕКЦИЯ',   extra: 'АОИ' },
+      { word: 'ТЕОРЕМА',  extra: 'КСУ' },
+      { word: 'КОНСПЕКТ', extra: 'АМУ' }
+    ],
+
+    FORMULAS: [
+      { parts: ['F', '=', 'm', 'a'],                       extra: ['V', 'S', '+'],        hint: 'Второй закон Ньютона' },
+      { parts: ['E', '=', 'm', 'c', '²'],                  extra: ['+', 'x', 'y'],        hint: 'Формула Эйнштейна' },
+      { parts: ['a', '²', '+', 'b', '²', '=', 'c', '²'],   extra: ['d', '3', 'x'],        hint: 'Теорема Пифагора' }
+    ],
+
+    /* ---------- ИНИЦИАЛИЗАЦИЯ ---------- */
     init: function () {
-      this.papers = [];
-      this.fragments = [];
-      this.particles = [];
-      this.collected = 0;
-      this.spawnT = 0;
-      this.fragSpawnT = 1.2;
+      this.phase = 0;
+      this.sub = 0;
       this.t = 0;
-      this.done = false;
       this.hintT = 4;
-      for (let i = 0; i < 7; i++) this.spawn(true);
-      for (let i = 0; i < 2; i++) this.spawnFragment();
+      this.done = false;
+      this.transT = 1.8;
+      this.transText = 'ФАЗА 1: НА СТОЛЕ';
+      this.dragging = null;
+      this.startSubLevel();
     },
 
-    speed: function () { return 1 + this.collected * 0.085; },
-    progress: function () { return this.collected / this.need; },
-
-    spawn: function (anywhere) {
-      const good = Math.random() < 0.6;
-      const fromLeft = Math.random() < 0.5;
-      this.papers.push({
-        x: anywhere ? 130 + Math.random() * 700 : (fromLeft ? -70 : W + 70),
-        y: 110 + Math.random() * 320,
-        vx: (fromLeft ? 1 : -1) * (35 + Math.random() * 45),
-        vy: (Math.random() * 2 - 1) * 35,
-        rot: (Math.random() * 2 - 1) * 0.5,
-        vr: (Math.random() * 2 - 1) * 1.0,
-        good: good,
-        pattern: Math.floor(Math.random() * 3),
-        phase: Math.random() * 6.28
-      });
+    startSubLevel: function () {
+      this.dragging = null;
+      this.hintT = 4;
+      if (this.phase === 0) this.startPuzzle();
+      else if (this.phase === 1) this.startWord();
+      else this.startFormula();
     },
 
-    spawnFragment: function () {
-      this.fragments.push({
-        x: 90 + Math.random() * 780,
-        y: 110 + Math.random() * 340,
-        vx: (Math.random() * 2 - 1) * 55,
-        vy: (Math.random() * 2 - 1) * 40,
-        phase: Math.random() * 6.28
-      });
-    },
+    /* ============================================================
+       ФАЗА 1. ПАЗЛ
+       ============================================================ */
+      startPuzzle: function () {
+        const cfg = this.PUZZLE[this.sub];
+        const cols = cfg.cols, rows = cfg.rows;
+        const noteSize = 320;
+        const sw = noteSize / cols;
+        const sh = noteSize / rows;
+        const startX = (W - noteSize) / 2;
+        const startY = 82;
 
-    update: function (dt) {
-      this.t += dt;
-      if (this.hintT > 0) this.hintT -= dt;
-      const sp = this.speed();
+        this.pageCanvas = this.buildPageCanvas(noteSize, noteSize, this.sub);
 
-      this.spawnT -= dt;
-      if (this.spawnT <= 0 && this.papers.length < 13 && !this.done) {
-        this.spawnT = Math.max(0.45, 1.3 / sp);
-        this.spawn(false);
-      }
+        this.slots = [];
+        this.pieces = [];
+        this.placedCount = 0;
 
-      // новые осколки — не больше 4 одновременно
-      this.fragSpawnT -= dt;
-      if (this.fragSpawnT <= 0 && this.fragments.length < 4 && !this.done) {
-        this.fragSpawnT = 2.2 + Math.random() * 2.0;
-        this.spawnFragment();
-      }
-
-      for (let i = 0; i < this.papers.length; i++) {
-        const p = this.papers[i];
-        p.x += p.vx * sp * dt;
-        p.y += p.vy * sp * dt;
-        if (p.pattern === 1) p.y += Math.sin(this.t * 2.2 + p.phase) * 70 * dt;
-        if (p.pattern === 2) p.x += Math.cos(this.t * 1.8 + p.phase) * 55 * dt;
-        p.rot += p.vr * dt;
-        if (p.x < 42) { p.x = 42; p.vx = Math.abs(p.vx); }
-        if (p.x > W - 42) { p.x = W - 42; p.vx = -Math.abs(p.vx); }
-        if (p.y < 96) { p.y = 96; p.vy = Math.abs(p.vy); }
-        if (p.y > H - 56) { p.y = H - 56; p.vy = -Math.abs(p.vy); }
-      }
-
-      // осколки двигаются по своим траекториям
-      for (let i = 0; i < this.fragments.length; i++) {
-        const f = this.fragments[i];
-        f.x += f.vx * sp * dt;
-        f.y += f.vy * sp * dt;
-        f.y += Math.sin(this.t * 2.4 + f.phase) * 40 * dt;
-        f.x += Math.cos(this.t * 1.6 + f.phase) * 30 * dt;
-        if (f.x < 40) { f.x = 40; f.vx = Math.abs(f.vx); }
-        if (f.x > W - 40) { f.x = W - 40; f.vx = -Math.abs(f.vx); }
-        if (f.y < 96) { f.y = 96; f.vy = Math.abs(f.vy); }
-        if (f.y > H - 50) { f.y = H - 50; f.vy = -Math.abs(f.vy); }
-      }
-
-      for (let i = this.particles.length - 1; i >= 0; i--) {
-        const q = this.particles[i];
-        q.x += q.vx * dt; q.y += q.vy * dt;
-        q.life -= dt;
-        if (q.life <= 0) this.particles.splice(i, 1);
-      }
-
-      if (this.collected >= this.need && !this.done) {
-        this.done = true;
-        const self = this;
-        setTimeout(function () { levelComplete(); }, 700);
-        for (let i = self.papers.length - 1; i >= 0; i--) {
-          const p = self.papers[i];
-          self.burst(p.x, p.y, '#ffd873');
-          self.papers.splice(i, 1);
+        const order = [];
+        for (let i = 0; i < cols * rows; i++) order.push(i);
+        for (let i = order.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
         }
-      }
-    },
 
-    burst: function (x, y, col) {
-      for (let k = 0; k < 9; k++) {
-        this.particles.push({
-          x: x, y: y,
-          vx: (Math.random() * 2 - 1) * 170,
-          vy: (Math.random() * 2 - 1) * 170,
-          life: 0.65, col: col
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            this.slots.push({
+              idx: r * cols + c,
+              x: startX + c * sw,
+              y: startY + r * sh,
+              w: sw, h: sh,
+              cols: cols, rows: rows,
+              placed: false
+            });
+          }
+        }
+
+        // кусочки в панели снизу — уменьшены, чтобы влезла подсказка
+        const trayW = 80, trayH = 80, gap = 6;
+        const totalW = order.length * (trayW + gap) - gap;
+        const trayStartX = (W - totalW) / 2;
+        const trayY = 410;
+
+        for (let i = 0; i < order.length; i++) {
+          const px = trayStartX + i * (trayW + gap);
+          this.pieces.push({
+            idx: order[i],
+            x: px, y: trayY,
+            w: trayW, h: trayH,
+            trayX: px, trayY: trayY,
+            trayW: trayW, trayH: trayH,
+            slotW: sw, slotH: sh,
+            cols: cols, rows: rows,
+            placed: false
+          });
+        }
+      },
+
+      buildPageCanvas: function (w, h, variant) {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const g = c.getContext('2d');
+
+        const bgGrad = g.createLinearGradient(0, 0, 0, h);
+        bgGrad.addColorStop(0, '#f6efd8');
+        bgGrad.addColorStop(1, '#e8dcbd');
+        g.fillStyle = bgGrad;
+        g.fillRect(0, 0, w, h);
+
+        g.strokeStyle = 'rgba(120,100,70,0.35)';
+        g.lineWidth = 2;
+        g.strokeRect(1, 1, w - 2, h - 2);
+
+        g.strokeStyle = 'rgba(120,100,70,0.14)';
+        g.lineWidth = 1;
+        for (let y = 40; y < h - 16; y += 24) {
+          g.beginPath(); g.moveTo(12, y); g.lineTo(w - 12, y); g.stroke();
+        }
+
+        if (variant === 0) this.drawNoteVariant0(g, w, h);
+        else if (variant === 1) this.drawNoteVariant1(g, w, h);
+        else this.drawNoteVariant2(g, w, h);
+
+        return c;
+      },
+
+      drawNoteVariant0: function (g, w, h) {
+        g.fillStyle = 'rgba(60,40,20,0.55)';
+        g.font = 'bold 13px Verdana, sans-serif';
+        g.textAlign = 'right';
+        g.fillText('12 мая', w - 14, 26);
+
+        g.textAlign = 'center';
+        g.fillStyle = '#3a1f10';
+        g.font = 'bold 22px Verdana, sans-serif';
+        g.fillText('Теорема Пифагора', w/2, 60);
+
+        g.strokeStyle = '#8a3a3a'; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(w*0.15, 68); g.lineTo(w*0.85, 68); g.stroke();
+
+        g.fillStyle = 'rgba(40,30,20,0.6)';
+        const textLines = [
+          [0.10, 0.26, 0.80], [0.10, 0.32, 0.72], [0.10, 0.38, 0.78], [0.10, 0.44, 0.55]
+        ];
+        for (let l of textLines) {
+          g.fillRect(w*l[0], h*l[1], w*l[2], 5);
+          g.fillRect(w*l[0], h*l[1] + 8, w*l[2] * 0.7, 3);
+        }
+
+        g.strokeStyle = '#8a3a3a'; g.lineWidth = 3;
+        g.strokeRect(w*0.14, h*0.56, w*0.72, h*0.16);
+        g.fillStyle = '#8a3a3a';
+        g.font = 'bold 22px Verdana, sans-serif';
+        g.textAlign = 'center';
+        g.fillText('a² + b² = c²', w/2, h*0.68);
+
+        g.strokeStyle = '#3a5fa8'; g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(w*0.20, h*0.94);
+        g.lineTo(w*0.62, h*0.94);
+        g.lineTo(w*0.20, h*0.78);
+        g.closePath();
+        g.stroke();
+
+        g.fillStyle = '#3a5fa8';
+        g.font = 'bold 12px Verdana, sans-serif';
+        g.fillText('a', w*0.16, h*0.88);
+        g.fillText('b', w*0.40, h*0.99);
+        g.fillText('c', w*0.44, h*0.84);
+      },
+
+      drawNoteVariant1: function (g, w, h) {
+        g.fillStyle = 'rgba(60,40,20,0.55)';
+        g.font = 'bold 13px Verdana, sans-serif';
+        g.textAlign = 'right';
+        g.fillText('03.06.26', w - 14, 26);
+
+        g.textAlign = 'center';
+        g.fillStyle = '#3a1f10';
+        g.font = 'bold 20px Verdana, sans-serif';
+        g.fillText('Второй закон Ньютона', w/2, 58);
+
+        g.strokeStyle = '#8a3a3a'; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(w*0.12, 66); g.lineTo(w*0.88, 66); g.stroke();
+
+        g.fillStyle = 'rgba(40,30,20,0.6)';
+        const lines = [
+          [0.10, 0.24, 0.80], [0.10, 0.29, 0.75], [0.10, 0.34, 0.82],
+          [0.10, 0.39, 0.65], [0.10, 0.44, 0.78], [0.10, 0.49, 0.55]
+        ];
+        for (let l of lines) {
+          g.fillRect(w*l[0], h*l[1], w*l[2], 5);
+          g.fillRect(w*l[0], h*l[1] + 7, w*l[2] * 0.65, 3);
+        }
+
+        g.strokeStyle = '#8a3a3a'; g.lineWidth = 3;
+        g.strokeRect(w*0.20, h*0.60, w*0.60, h*0.14);
+        g.fillStyle = '#8a3a3a';
+        g.font = 'bold 24px Verdana, sans-serif';
+        g.textAlign = 'center';
+        g.fillText('F = m · a', w/2, h*0.71);
+
+        g.fillStyle = '#3a5fa8';
+        g.font = 'italic 12px Verdana, sans-serif';
+        g.textAlign = 'left';
+        g.fillText('! Единица: Н', w*0.12, h*0.82);
+
+        g.strokeStyle = '#3a5fa8'; g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(w*0.72, h*0.92);
+        g.lineTo(w*0.90, h*0.92);
+        g.lineTo(w*0.86, h*0.88);
+        g.moveTo(w*0.90, h*0.92);
+        g.lineTo(w*0.86, h*0.96);
+        g.stroke();
+      },
+
+      drawNoteVariant2: function (g, w, h) {
+        g.fillStyle = 'rgba(60,40,20,0.55)';
+        g.font = 'bold 12px Verdana, sans-serif';
+        g.textAlign = 'right';
+        g.fillText('ШПАРГАЛКА', w - 14, 24);
+
+        g.textAlign = 'center';
+        g.fillStyle = '#3a1f10';
+        g.font = 'bold 18px Verdana, sans-serif';
+        g.fillText('ФИЗИКА', w/2, 52);
+
+        g.strokeStyle = '#8a3a3a'; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(w*0.30, 60); g.lineTo(w*0.70, 60); g.stroke();
+
+        g.fillStyle = '#8a3a3a';
+        g.font = 'bold 18px Verdana, sans-serif';
+        g.textAlign = 'center';
+        g.fillText('E = mc²', w*0.30, h*0.24);
+        g.fillText('V = S / t', w*0.72, h*0.24);
+
+        g.strokeStyle = 'rgba(120,100,70,0.4)'; g.lineWidth = 1;
+        g.beginPath(); g.moveTo(w*0.15, h*0.30); g.lineTo(w*0.85, h*0.30); g.stroke();
+
+        g.fillStyle = 'rgba(40,30,20,0.6)';
+        const lines = [
+          [0.10, 0.36, 0.80], [0.10, 0.41, 0.72], [0.10, 0.46, 0.78], [0.10, 0.51, 0.55],
+          [0.10, 0.57, 0.82], [0.10, 0.62, 0.70], [0.10, 0.67, 0.60]
+        ];
+        for (let l of lines) {
+          g.fillRect(w*l[0], h*l[1], w*l[2], 4);
+          g.fillRect(w*l[0], h*l[1] + 6, w*l[2] * 0.6, 3);
+        }
+
+        g.strokeStyle = '#8a3a3a'; g.lineWidth = 2;
+        g.strokeRect(w*0.55, h*0.74, w*0.35, h*0.11);
+        g.fillStyle = '#8a3a3a';
+        g.font = 'bold 16px Verdana, sans-serif';
+        g.textAlign = 'center';
+        g.fillText('a² + b² = c²', w*0.725, h*0.81);
+
+        g.strokeStyle = '#3a5fa8'; g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(w*0.10, h*0.90);
+        g.lineTo(w*0.35, h*0.90);
+        g.lineTo(w*0.10, h*0.76);
+        g.closePath();
+        g.stroke();
+
+        g.fillStyle = '#3a5fa8';
+        g.font = 'italic 11px Verdana, sans-serif';
+        g.textAlign = 'left';
+        g.fillText('см. стр. 42', w*0.55, h*0.92);
+      },
+
+    /* ============================================================
+       ФАЗА 2. СЛОВО
+       ============================================================ */
+    startWord: function () {
+      const cfg = this.WORDS[this.sub];
+      this.targetWord = cfg.word;
+      this.nextLetterIndex = 0;
+
+      const allChars = cfg.word.split('').concat(cfg.extra.split(''));
+      for (let i = allChars.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = allChars[i]; allChars[i] = allChars[j]; allChars[j] = tmp;
+      }
+
+      this.letters = [];
+      for (let i = 0; i < allChars.length; i++) {
+        this.letters.push({
+          ch: allChars[i],
+          x: 150 + Math.random() * (W - 300),
+          y: 220 + Math.random() * 240,
+          vx: (Math.random() - 0.5) * 60,
+          vy: (Math.random() - 0.5) * 50,
+          taken: false,
+          flash: 0
+        });
+      }
+
+      this.letterSlots = [];
+      const wordW = cfg.word.length * 68;
+      const startX = (W - wordW) / 2;
+      for (let i = 0; i < cfg.word.length; i++) {
+        this.letterSlots.push({
+          x: startX + i * 68,
+          y: 90,
+          w: 58, h: 66,
+          ch: cfg.word[i]
         });
       }
     },
 
-    onPointerDown: function (x, y) {
-      if (this.done) return;
+    /* ============================================================
+       ФАЗА 3. ФОРМУЛА
+       ============================================================ */
+    startFormula: function () {
+      const cfg = this.FORMULAS[this.sub];
+      this.formulaPlaced = 0;
 
-      // сначала проверяем осколки
-      for (let i = this.fragments.length - 1; i >= 0; i--) {
-        const f = this.fragments[i];
-        const dx = f.x - x, dy = f.y - y;
-        if (dx * dx + dy * dy < 32 * 32) {
-          this.fragments.splice(i, 1);
-          playSound('collect', 0.55);
-          addFragment();
-          this.burst(f.x, f.y, '#7ff0ff');
-          return;
-        }
+      const allParts = cfg.parts.concat(cfg.extra);
+      for (let i = allParts.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = allParts[i]; allParts[i] = allParts[j]; allParts[j] = tmp;
       }
 
-      // затем листы
-      for (let i = this.papers.length - 1; i >= 0; i--) {
-        const p = this.papers[i];
-        const dx = p.x - x, dy = p.y - y;
-        if (dx * dx + dy * dy < 46 * 46) {
-          this.papers.splice(i, 1);
-          if (p.good) {
-            this.collected++;
-            playSound('collect', 0.5);
-            this.burst(p.x, p.y, '#8fd0ff');
-          } else {
-            playSound('hurt', 0.6);
-            this.burst(p.x, p.y, '#ff6b8a');
-            damage();
-          }
-          return;
+      const totalW = cfg.parts.length * 76;
+      const startX = (W - totalW) / 2;
+      this.formulaSlots = [];
+      for (let i = 0; i < cfg.parts.length; i++) {
+        this.formulaSlots.push({
+          x: startX + i * 76,
+          y: 240,
+          w: 68, h: 68,
+          correct: cfg.parts[i],
+          filled: false
+        });
+      }
+
+      const perRow = Math.min(allParts.length, 6);
+      this.formulaElements = [];
+      for (let i = 0; i < allParts.length; i++) {
+        const px = 100 + (i % perRow) * 130;
+        const py = 380 + Math.floor(i / perRow) * 76;
+        this.formulaElements.push({
+          ch: allParts[i],
+          x: px, y: py,
+          w: 64, h: 64,
+          placed: false,
+          homeX: px, homeY: py
+        });
+      }
+    },
+
+    /* ---------- ПРОГРЕСС ---------- */
+    progress: function () {
+      const done = this.phase * 3 + this.sub;
+      let frac = 0;
+      if (this.phase === 0 && this.slots.length) {
+        frac = this.placedCount / this.slots.length;
+      } else if (this.phase === 1 && this.targetWord.length) {
+        frac = this.nextLetterIndex / this.targetWord.length;
+      } else if (this.phase === 2 && this.formulaSlots.length) {
+        frac = this.formulaPlaced / this.formulaSlots.length;
+      }
+      return Math.min(1, (done + frac) / 9);
+    },
+
+    /* ---------- ПЕРЕХОД ---------- */
+    goNext: function () {
+      const self = this;
+      if (this.phase === 0) {
+        if (this.sub < 2) {
+          this.transT = 1.5;
+          this.transText = 'ПАЗЛ ' + (this.sub + 2) + ' / 3';
+          setTimeout(function () {
+            self.sub++;
+            self.startSubLevel();
+            self.transT = 1.0;
+            self.transText = 'ФАЗА 1: НА СТОЛЕ';
+          }, 1300);
+        } else {
+          this.transT = 1.5;
+          this.transText = 'ФАЗА 1 ПРОЙДЕНА';
+          setTimeout(function () {
+            self.phase = 1; self.sub = 0;
+            G.hearts = 3;
+            G.lostThisPhase = false;
+            self.startSubLevel();
+            self.transT = 1.0;
+            self.transText = 'ФАЗА 2: В ГОЛОВЕ';
+          }, 1300);
+        }
+      } else if (this.phase === 1) {
+        if (this.sub < 2) {
+          this.transT = 1.5;
+          this.transText = 'СЛОВО ' + (this.sub + 2) + ' / 3';
+          setTimeout(function () {
+            self.sub++;
+            self.startSubLevel();
+            self.transT = 1.0;
+            self.transText = 'ФАЗА 2: В ГОЛОВЕ';
+          }, 1300);
+        } else {
+          this.transT = 1.5;
+          this.transText = 'ФАЗА 2 ПРОЙДЕНА';
+          setTimeout(function () {
+            self.phase = 2; self.sub = 0;
+            G.hearts = 3;
+            G.lostThisPhase = false;
+            self.startSubLevel();
+            self.transT = 1.0;
+            self.transText = 'ФАЗА 3: ФОРМУЛЫ';
+          }, 1300);
+        }
+      } else {
+        if (this.sub < 2) {
+          this.transT = 1.5;
+          this.transText = 'ФОРМУЛА ' + (this.sub + 2) + ' / 3';
+          setTimeout(function () {
+            self.sub++;
+            self.startSubLevel();
+            self.transT = 1.0;
+            self.transText = 'ФАЗА 3: ФОРМУЛЫ';
+          }, 1300);
+        } else {
+          this.done = true;
+          this.transT = 1.8;
+          this.transText = 'УРОВЕНЬ ПРОЙДЕН';
+          setTimeout(function () { levelComplete(); }, 1400);
         }
       }
     },
 
+    /* ---------- ОБНОВЛЕНИЕ ---------- */
+    update: function (dt) {
+      this.t += dt;
+      if (this.hintT > 0) this.hintT -= dt;
+      if (this.transT > 0) this.transT -= dt;
+
+      // буквы плавают
+      if (this.phase === 1) {
+        for (let l of this.letters) {
+          if (l.taken) continue;
+          l.x += l.vx * dt;
+          l.y += l.vy * dt;
+          if (l.x < 50)  { l.x = 50;  l.vx = Math.abs(l.vx); }
+          if (l.x > W-50){ l.x = W-50; l.vx = -Math.abs(l.vx); }
+          if (l.y < 180) { l.y = 180; l.vy = Math.abs(l.vy); }
+          if (l.y > H-60){ l.y = H-60; l.vy = -Math.abs(l.vy); }
+          l.vx *= 0.998;
+          l.vy *= 0.998;
+          if (l.flash > 0) l.flash -= dt;
+        }
+      }
+    },
+
+    /* ---------- КЛИК ---------- */
+    onPointerDown: function (x, y) {
+      if (this.transT > 0 || this.done) return;
+
+      // ФАЗА 1 — взять кусочек
+      if (this.phase === 0) {
+        for (let p of this.pieces) {
+          if (p.placed) continue;
+          if (x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) {
+            this.dragging = p;
+            // увеличиваем до размера слота и центрируем на курсоре
+            p.w = p.slotW;
+            p.h = p.slotH;
+            p.x = x - p.w / 2;
+            p.y = y - p.h / 2;
+            this.dragOff.x = p.w / 2;
+            this.dragOff.y = p.h / 2;
+            playSound('jump', 0.3);
+            return;
+          }
+        }
+      }
+
+      // ФАЗА 2 — клик по букве
+      if (this.phase === 1) {
+        const needed = this.targetWord[this.nextLetterIndex];
+        if (!needed) return;
+        for (let l of this.letters) {
+          if (l.taken) continue;
+          if (Math.abs(x - l.x) < 32 && Math.abs(y - l.y) < 32) {
+            if (l.ch === needed) {
+              l.taken = true;
+              this.nextLetterIndex++;
+              playSound('collect', 0.6);
+              if (this.nextLetterIndex >= this.targetWord.length) {
+                const self = this;
+                setTimeout(function () { self.goNext(); }, 500);
+              }
+            } else {
+              playSound('hurt', 0.4);
+              l.vx += (l.x - x) * 8;
+              l.vy += (l.y - y) * 8;
+              l.flash = 0.5;
+              damage();
+            }
+            return;
+          }
+        }
+      }
+
+      // ФАЗА 3 — взять элемент формулы
+      if (this.phase === 2) {
+        for (let e of this.formulaElements) {
+          if (e.placed) continue;
+          if (Math.abs(x - (e.x + e.w/2)) < 40 && Math.abs(y - (e.y + e.h/2)) < 40) {
+            this.dragging = e;
+            this.dragOff.x = x - e.x;
+            this.dragOff.y = y - e.y;
+            playSound('jump', 0.3);
+            return;
+          }
+        }
+      }
+    },
+
+    onPointerMove: function (x, y) {
+      this.pointerX = x;
+      this.pointerY = y;
+      if (this.dragging) {
+        this.dragging.x = x - this.dragOff.x;
+        this.dragging.y = y - this.dragOff.y;
+      }
+    },
+
+    onPointerUp: function (x, y) {
+      if (!this.dragging) return;
+
+      // ФАЗА 1
+      if (this.phase === 0) {
+        const p = this.dragging;
+        this.dragging = null;
+
+        const pCx = p.x + p.w / 2;
+        const pCy = p.y + p.h / 2;
+        let dropped = false;
+
+        for (let s of this.slots) {
+          if (s.placed) continue;
+          const sCx = s.x + s.w / 2;
+          const sCy = s.y + s.h / 2;
+          if (Math.abs(pCx - sCx) < s.w / 2 + 20 &&
+              Math.abs(pCy - sCy) < s.h / 2 + 20) {
+            if (p.idx === s.idx) {
+              p.x = s.x; p.y = s.y;
+              p.w = s.w; p.h = s.h;
+              p.placed = true;
+              s.placed = true;
+              this.placedCount++;
+              playSound('collect', 0.6);
+              if (this.placedCount >= this.slots.length) {
+                const self = this;
+                setTimeout(function () { self.goNext(); }, 500);
+              }
+            } else {
+              p.x = p.trayX; p.y = p.trayY;
+              p.w = p.trayW; p.h = p.trayH;
+              playSound('hurt', 0.3);
+              damage();
+            }
+            dropped = true;
+            break;
+          }
+        }
+        if (!dropped) {
+          p.x = p.trayX; p.y = p.trayY;
+          p.w = p.trayW; p.h = p.trayH;
+        }
+        return;
+      }
+
+      // ФАЗА 3
+      if (this.phase === 2) {
+        const e = this.dragging;
+        this.dragging = null;
+        for (let s of this.formulaSlots) {
+          if (s.filled) continue;
+          const dx = (e.x + e.w/2) - (s.x + s.w/2);
+          const dy = (e.y + e.h/2) - (s.y + s.h/2);
+          if (Math.abs(dx) < 45 && Math.abs(dy) < 45) {
+            if (e.ch === s.correct) {
+              e.x = s.x; e.y = s.y;
+              e.placed = true;
+              s.filled = true;
+              this.formulaPlaced++;
+              playSound('collect', 0.6);
+              if (this.formulaPlaced >= this.formulaSlots.length) {
+                const self = this;
+                setTimeout(function () { self.goNext(); }, 500);
+              }
+            } else {
+              e.x = e.homeX; e.y = e.homeY;
+              playSound('hurt', 0.3);
+            }
+            return;
+          }
+        }
+        e.x = e.homeX; e.y = e.homeY;
+        return;
+      }
+    },
+
+    /* ---------- РИСОВАНИЕ ---------- */
     draw: function (c) {
-      drawBackground(c, 'bg_corridor', '#0a1226', '#050912');
-      const g = c.createRadialGradient(480, 240, 40, 480, 240, 520);
-      g.addColorStop(0, 'rgba(120,160,255,.10)');
-      g.addColorStop(1, 'rgba(120,160,255,0)');
+      if (this.phase === 0) this.drawTableBg(c);
+      else if (this.phase === 1) this.drawHeadBg(c);
+      else this.drawFormulaBg(c);
+
+      if (this.phase === 0) this.drawPuzzle(c);
+      else if (this.phase === 1) this.drawWord(c);
+      else this.drawFormula(c);
+
+      if (this.transT > 0) this.drawTransition(c);
+
+      drawHUD(c);
+    },
+
+    /* --- фоны --- */
+    drawTableBg: function (c) {
+      const g = c.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#1a1208');
+      g.addColorStop(0.5, '#2a1a0c');
+      g.addColorStop(1, '#1a1208');
       c.fillStyle = g;
       c.fillRect(0, 0, W, H);
-      for (let i = 0; i < 40; i++) {
-        const sx = (i * 137.5) % W;
-        const sy = (i * 89.3) % H;
-        c.fillStyle = 'rgba(160,190,255,' + (0.05 + 0.08 * Math.abs(Math.sin(this.t + i))) + ')';
-        c.fillRect(sx, sy, 2, 2);
+
+      c.strokeStyle = 'rgba(80,50,20,0.25)';
+      c.lineWidth = 1;
+      for (let y = 70; y < H; y += 12) {
+        c.beginPath();
+        c.moveTo(0, y + Math.sin(y * 0.1) * 3);
+        c.lineTo(W, y + Math.cos(y * 0.15) * 3);
+        c.stroke();
       }
 
-      for (let i = 0; i < this.papers.length; i++) {
-        const p = this.papers[i];
-        if (IMG[p.good ? 'paper_good' : 'paper_bad']) {
-          c.save();
-          c.translate(p.x, p.y); c.rotate(p.rot);
-          c.drawImage(IMG[p.good ? 'paper_good' : 'paper_bad'], -34, -44, 68, 88);
-          c.restore();
+      // кружка
+      c.fillStyle = '#3a2818';
+      c.beginPath(); c.arc(110, 180, 50, 0, 7); c.fill();
+      c.fillStyle = '#4a3520';
+      c.beginPath(); c.arc(110, 180, 40, 0, 7); c.fill();
+      c.fillStyle = '#050303';
+      c.beginPath(); c.arc(110, 180, 33, 0, 7); c.fill();
+      c.strokeStyle = '#3a2818'; c.lineWidth = 7;
+      c.beginPath(); c.arc(148, 180, 28, -Math.PI/2, Math.PI/2); c.stroke();
+
+      // свет лампы
+      const lg = c.createRadialGradient(W/2, 0, 20, W/2, 0, 520);
+      lg.addColorStop(0, 'rgba(255,220,140,0.22)');
+      lg.addColorStop(1, 'rgba(255,220,140,0)');
+      c.fillStyle = lg;
+      c.fillRect(0, 0, W, H);
+    },
+
+    drawHeadBg: function (c) {
+      const g = c.createRadialGradient(W/2, H/2, 50, W/2, H/2, 600);
+      g.addColorStop(0, '#1a1f3a');
+      g.addColorStop(1, '#05070f');
+      c.fillStyle = g;
+      c.fillRect(0, 0, W, H);
+
+      for (let i = 0; i < 25; i++) {
+        const tt = this.t * 0.3 + i;
+        const x = (i * 137 + Math.sin(tt) * 90) % W;
+        const y = (i * 91 + Math.cos(tt * 0.7) * 70) % H;
+        const r = 70 + Math.sin(tt) * 30;
+        const fg = c.createRadialGradient(x, y, 0, x, y, r);
+        fg.addColorStop(0, 'rgba(80,120,200,0.07)');
+        fg.addColorStop(1, 'rgba(80,120,200,0)');
+        c.fillStyle = fg;
+        c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+      }
+    },
+
+    drawFormulaBg: function (c) {
+      const g = c.createRadialGradient(W/2, 150, 30, W/2, 150, 500);
+      g.addColorStop(0, '#221a3a');
+      g.addColorStop(1, '#08060f');
+      c.fillStyle = g;
+      c.fillRect(0, 0, W, H);
+
+      c.strokeStyle = 'rgba(160,120,255,0.08)';
+      c.lineWidth = 1;
+      for (let x = 0; x < W; x += 50) {
+        c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke();
+      }
+      for (let y = 0; y < H; y += 50) {
+        c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+      }
+    },
+
+    drawPuzzle: function (c) {
+      for (let s of this.slots) {
+        if (s.placed) {
+          const sw = this.pageCanvas.width / s.cols;
+          const sh = this.pageCanvas.height / s.rows;
+          const sx = (s.idx % s.cols) * sw;
+          const sy = Math.floor(s.idx / s.cols) * sh;
+          c.drawImage(this.pageCanvas, sx, sy, sw, sh, s.x, s.y, s.w, s.h);
+          c.strokeStyle = 'rgba(120,100,70,0.35)';
+          c.lineWidth = 1;
+          c.strokeRect(s.x, s.y, s.w, s.h);
         } else {
-          drawPaper(c, p.x, p.y, p.rot, p.good, this.t);
+          c.fillStyle = 'rgba(255,240,200,0.05)';
+          c.fillRect(s.x, s.y, s.w, s.h);
+          c.strokeStyle = 'rgba(160,180,220,0.30)';
+          c.setLineDash([6, 4]);
+          c.lineWidth = 2;
+          c.strokeRect(s.x + 1, s.y + 1, s.w - 2, s.h - 2);
+          c.setLineDash([]);
         }
       }
 
-      // осколки
-      for (let i = 0; i < this.fragments.length; i++) {
-        const f = this.fragments[i];
-        if (IMG['fragment']) {
-          c.drawImage(IMG['fragment'], f.x - 16, f.y - 16, 32, 32);
-        } else {
-          drawFragment(c, f.x, f.y, this.t, 13, 1);
-        }
+      for (let p of this.pieces) {
+        if (p === this.dragging) continue;
+        if (p.placed) continue;
+        this.drawPieceCrop(c, p, false);
       }
-
-      for (let i = 0; i < this.particles.length; i++) {
-        const q = this.particles[i];
-        c.globalAlpha = Math.max(0, q.life / 0.65);
-        c.fillStyle = q.col;
-        c.beginPath(); c.arc(q.x, q.y, 4, 0, 7); c.fill();
+      if (this.dragging && this.phase === 0) {
+        this.drawPieceCrop(c, this.dragging, true);
       }
-      c.globalAlpha = 1;
 
       if (this.hintT > 0) {
-        c.globalAlpha = Math.min(1, this.hintT);
-        c.fillStyle = '#cfe0ff';
-        c.font = '18px Verdana';
-        c.textAlign = 'center';
-        c.fillText('Кликай по листам с текстом. Ловите голубые осколки!', W / 2, H - 40);
-        c.globalAlpha = 1;
+        drawBottomHint(c, 'Перетащи кусочки на их места — рисунок соберётся сам',
+                       this.hintT, '#7ff0ff');
       }
-      drawHUD(c);
+    },
+
+    drawPieceCrop: function (c, p, lifted) {
+      const sw = this.pageCanvas.width / p.cols;
+      const sh = this.pageCanvas.height / p.rows;
+      const sx = (p.idx % p.cols) * sw;
+      const sy = Math.floor(p.idx / p.cols) * sh;
+
+      c.save();
+      if (lifted) {
+        c.shadowColor = 'rgba(0,0,0,0.85)';
+        c.shadowBlur = 22;
+        c.shadowOffsetY = 8;
+      } else {
+        c.shadowColor = 'rgba(0,0,0,0.45)';
+        c.shadowBlur = 8;
+        c.shadowOffsetY = 3;
+      }
+      c.fillStyle = '#f4eedd';
+      c.fillRect(p.x, p.y, p.w, p.h);
+      c.shadowBlur = 0;
+      c.shadowOffsetY = 0;
+
+      c.drawImage(this.pageCanvas, sx, sy, sw, sh, p.x, p.y, p.w, p.h);
+
+      c.strokeStyle = lifted ? '#7ff0ff' : 'rgba(120,100,70,0.7)';
+      c.lineWidth = lifted ? 3 : 2;
+      c.strokeRect(p.x, p.y, p.w, p.h);
+      c.restore();
+    },
+
+    /* --- фаза 2 --- */
+    drawWord: function (c) {
+      // слоты
+      for (let i = 0; i < this.letterSlots.length; i++) {
+        const s = this.letterSlots[i];
+        const filled = i < this.nextLetterIndex;
+        c.fillStyle = filled ? 'rgba(120,200,255,0.85)' : 'rgba(40,60,120,0.5)';
+        rr(c, s.x, s.y, s.w, s.h, 6); c.fill();
+        c.strokeStyle = filled ? '#7ff0ff' : '#4a63b8';
+        c.lineWidth = 3;
+        rr(c, s.x, s.y, s.w, s.h, 6); c.stroke();
+
+        if (filled) {
+          c.fillStyle = '#0a1430';
+          c.font = 'bold 36px "PixelTitle", Verdana';
+          c.textAlign = 'center';
+          c.textBaseline = 'middle';
+          c.fillText(this.targetWord[i], s.x + s.w/2, s.y + s.h/2 + 2);
+        }
+      }
+      c.textBaseline = 'alphabetic';
+
+      // буквы
+      for (let l of this.letters) {
+        if (l.taken) continue;
+        const isFlash = l.flash > 0;
+        const col = isFlash ? '#ff6b8a' : '#73eff7';
+
+        const g = c.createRadialGradient(l.x, l.y, 5, l.x, l.y, 45);
+        g.addColorStop(0, isFlash ? 'rgba(255,100,140,0.5)' : 'rgba(115,240,247,0.45)');
+        g.addColorStop(1, 'rgba(115,240,247,0)');
+        c.fillStyle = g;
+        c.beginPath(); c.arc(l.x, l.y, 45, 0, 7); c.fill();
+
+        c.fillStyle = 'rgba(20,40,80,0.85)';
+        rr(c, l.x - 26, l.y - 26, 52, 52, 6); c.fill();
+        c.strokeStyle = col; c.lineWidth = 3;
+        rr(c, l.x - 26, l.y - 26, 52, 52, 6); c.stroke();
+
+        c.fillStyle = col;
+        c.font = 'bold 32px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(l.ch, l.x, l.y + 2);
+      }
+      c.textBaseline = 'alphabetic';
+
+      if (this.hintT > 0) {
+        drawBottomHint(c, 'Собери: ' + this.targetWord + ' — кликай буквы по порядку',
+                       this.hintT, '#7ff0ff');
+      } else {
+        drawBottomHint(c, 'Собери: ' + this.targetWord, 1, '#7ff0ff');
+      }
+    },
+
+    /* --- фаза 3 --- */
+    drawFormula: function (c) {
+      const cfg = this.FORMULAS[this.sub];
+
+      c.fillStyle = '#b8a8e8';
+      c.font = 'bold 18px "PixelText", Verdana';
+      c.textAlign = 'center';
+      c.fillText(cfg.hint, W/2, 118);
+
+      c.fillStyle = 'rgba(200,168,255,0.18)';
+      c.font = 'bold 38px "PixelTitle", Verdana';
+      c.fillText(cfg.parts.join(' '), W/2, 182);
+
+      // слоты
+      for (let s of this.formulaSlots) {
+        c.fillStyle = s.filled ? 'rgba(180,140,255,0.85)' : 'rgba(60,40,120,0.5)';
+        rr(c, s.x, s.y, s.w, s.h, 8); c.fill();
+        c.strokeStyle = s.filled ? '#c8a8ff' : '#7a5fb8';
+        c.lineWidth = 3;
+        rr(c, s.x, s.y, s.w, s.h, 8); c.stroke();
+
+        if (s.filled) {
+          c.fillStyle = '#1a0f30';
+          c.font = 'bold 34px "PixelTitle", Verdana';
+          c.textAlign = 'center';
+          c.textBaseline = 'middle';
+          c.fillText(s.correct, s.x + s.w/2, s.y + s.h/2 + 2);
+        }
+      }
+      c.textBaseline = 'alphabetic';
+
+      // элементы
+      for (let e of this.formulaElements) {
+        if (e.placed) continue;
+        if (e === this.dragging) continue;
+
+        c.save();
+        c.fillStyle = 'rgba(60,40,120,0.85)';
+        rr(c, e.x, e.y, e.w, e.h, 8); c.fill();
+        c.strokeStyle = '#c8a8ff'; c.lineWidth = 3;
+        rr(c, e.x, e.y, e.w, e.h, 8); c.stroke();
+        c.fillStyle = '#e8d8ff';
+        c.font = 'bold 32px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(e.ch, e.x + e.w/2, e.y + e.h/2 + 2);
+        c.restore();
+      }
+      c.textBaseline = 'alphabetic';
+
+      // тащимый
+      if (this.dragging && this.phase === 2) {
+        const e = this.dragging;
+        c.save();
+        c.shadowColor = 'rgba(200,168,255,0.8)';
+        c.shadowBlur = 22;
+        c.fillStyle = 'rgba(100,70,180,0.95)';
+        rr(c, e.x, e.y, e.w, e.h, 8); c.fill();
+        c.strokeStyle = '#e8d8ff'; c.lineWidth = 4;
+        rr(c, e.x, e.y, e.w, e.h, 8); c.stroke();
+        c.shadowBlur = 0;
+        c.fillStyle = '#ffffff';
+        c.font = 'bold 32px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(e.ch, e.x + e.w/2, e.y + e.h/2 + 2);
+        c.restore();
+        c.textBaseline = 'alphabetic';
+      }
+
+      if (this.hintT > 0) {
+        drawBottomHint(c, 'Перетащи элементы в правильные ячейки',
+                       this.hintT, '#c8a8ff');
+      }
+    },
+
+    /* --- общее --- */
+
+    drawTransition: function (c) {
+      const a = Math.min(1, this.transT * 1.6);
+      c.fillStyle = 'rgba(5,8,20,' + (a * 0.9) + ')';
+      c.fillRect(0, 0, W, H);
+      c.fillStyle = '#cfe0ff';
+      c.font = 'bold 30px "PixelTitle", Verdana';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(this.transText, W/2, H/2);
+      c.textBaseline = 'alphabetic';
     }
   };
 }
@@ -2103,12 +3041,8 @@ function Level2() {
       c.restore();
 
       if (this.hintT > 0) {
-        c.globalAlpha = Math.min(1, this.hintT);
-        c.fillStyle = '#cfe0ff';
-        c.font = '18px Verdana';
-        c.textAlign = 'center';
-        c.fillText('Пробел — прыжок. Собери осколки — за низкими беги, за высокими прыгай!', W / 2, H - 34);
-        c.globalAlpha = 1;
+        drawBottomHint(c, 'Пробел — прыжок. Собери осколки!',
+                       this.hintT, '#7ff0ff');
       }
       drawHUD(c);
     }
@@ -2330,12 +3264,9 @@ function Level3() {
                  W - 138, H - 22);
 
       // сообщение
+      // сообщение
       if (this.msgT > 0) {
-        c.globalAlpha = Math.min(1, this.msgT);
-        c.fillStyle = this.msgCol;
-        c.font = 'bold 22px Verdana';
-        c.fillText(this.msg, W / 2, H - 30);
-        c.globalAlpha = 1;
+        drawBottomHint(c, this.msg, this.msgT, this.msgCol);
       }
 
       // кот
@@ -2785,13 +3716,8 @@ function Level4() {
       }
 
       if (this.hintT > 0) {
-        c.globalAlpha = Math.min(1, this.hintT);
-        c.fillStyle = '#cfe0ff';
-        c.font = '16px Verdana';
-        c.textAlign = 'center';
-        c.fillText('Стрелки — бег, Пробел — прыжок, клик — движение. Осколки → урон!',
-                   W / 2, H - 32);
-        c.globalAlpha = 1;
+        drawBottomHint(c, 'Стрелки — бег, Пробел — прыжок, клик — движение',
+                       this.hintT, '#ffb3c8');
       }
       drawHUD(c);
     }
@@ -3064,11 +3990,13 @@ function updateMap() {
     const meta = LEVEL_META[i];
     const locked = n > G.maxUnlocked;
     const done = G.completed[i];
+    const perfect = G.levelPerfect['l' + n] === true;
 
     const el = document.createElement('div');
     el.className = 'lvl';
     if (locked) el.classList.add('locked');
     if (done) el.classList.add('done');
+    if (perfect) el.classList.add('perfect');
 
     const numDiv = document.createElement('div');
     numDiv.className = 'lvl-num';
@@ -3084,12 +4012,30 @@ function updateMap() {
 
     const stateDiv = document.createElement('div');
     stateDiv.className = 'lvl-state';
-    stateDiv.textContent = done ? '✓ пройден' : (locked ? '🔒 закрыт' : '► доступен');
+    if (perfect) stateDiv.textContent = '★ идеально';
+    else if (done) stateDiv.textContent = '✓ пройден';
+    else if (locked) stateDiv.textContent = '🔒 закрыт';
+    else stateDiv.textContent = '► доступен';
+
+    // метка сердец для этого уровня
+    const heartsDiv = document.createElement('div');
+    heartsDiv.className = 'lvl-hearts';
+    if (perfect) {
+      heartsDiv.textContent = '❤❤❤';
+      heartsDiv.style.color = '#ff4d6d';
+    } else if (done) {
+      heartsDiv.textContent = '❤❤♡';
+      heartsDiv.style.color = 'rgba(255,110,140,0.6)';
+    } else {
+      heartsDiv.textContent = '❤❤❤';
+      heartsDiv.style.color = 'rgba(255,255,255,0.25)';
+    }
 
     el.appendChild(numDiv);
     el.appendChild(nameDiv);
     el.appendChild(subDiv);
     el.appendChild(stateDiv);
+    el.appendChild(heartsDiv);
 
     if (!locked) {
       el.addEventListener('click', function () {
@@ -3100,10 +4046,11 @@ function updateMap() {
     list.appendChild(el);
   }
 
-  let heartsStr = '';
-  for (let i = 0; i < G.hearts; i++) heartsStr += '❤';
-  if (!heartsStr) heartsStr = '—';
-  document.getElementById('mapHearts').textContent = heartsStr;
+  // Сколько уровней идеально
+  let perfectCount = 0;
+  for (let i = 1; i <= 4; i++) if (G.levelPerfect['l' + i]) perfectCount++;
+
+  document.getElementById('mapHearts').textContent = '★ ' + perfectCount + ' / 4';
   document.getElementById('mapFrag').textContent = '◈ осколков: ' + G.fragments;
   document.getElementById('mapAch').textContent = '★ ' + G.achievements.length + ' / ' + ACH_DEFS.length;
 }
