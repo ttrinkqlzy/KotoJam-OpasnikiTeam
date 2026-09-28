@@ -2426,10 +2426,19 @@ function Level1() {
       }
     },
 
-    onPointerMove: function (x, y) {
+    onPointerMove: function (x, y) 
+    {
       this.pointerX = x;
       this.pointerY = y;
-      if (this.dragging) {
+      if (!this.dragging) return;
+      if (this.phase === 2) 
+      {
+        // Формула — двигаем по x / y
+        this.dragging.x = x - this.dragOff.x;
+        this.dragging.y = y - this.dragOff.y;
+      } else 
+      {
+        // Пазл — двигаем по cx / cy (центр)
         this.dragging.cx = x - this.dragOff.x;
         this.dragging.cy = y - this.dragOff.y;
       }
