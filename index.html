@@ -531,7 +531,8 @@ h1 span {
 /* ============================================================
    КНОПКА ПАУЗЫ В УГЛУ
    ============================================================ */
-.pause-btn {
+.pause-btn 
+{
   position: absolute;
   top: 78px;
   right: 14px;
@@ -556,6 +557,20 @@ h1 span {
 .pause-btn:active {
   transform: translate(2px, 2px);
   box-shadow: 2px 2px 0 var(--c-shadow);
+}
+
+/* DEBUG: кнопка пропуска фазы */
+.skip-btn {
+  right: 66px;                        /* сдвинута левее pause-btn */
+  border-color: var(--c-gold);
+  color: var(--c-gold);
+  font-size: 20px;
+  font-weight: bold;
+}
+.skip-btn:hover {
+  background: rgba(255, 205, 117, 0.18);
+  border-color: var(--c-gold);
+  color: var(--c-gold);
 }
 
 /* ============================================================
@@ -673,6 +688,8 @@ h1 span {
     <div class="screen" id="gameScreen">
       <canvas id="cv" width="960" height="540"></canvas>
       <button class="pause-btn" id="pauseBtn" title="Пауза (ESC)">❚❚</button>
+      <button class="pause-btn skip-btn" id="skipBtn"
+              title="DEBUG: пропустить фазу">»</button>
       <div class="hint-box" id="hintBox"></div>
       <div class="pause-overlay" id="pauseOverlay">
         <div class="pause-panel">
@@ -717,6 +734,7 @@ h1 span {
 <script>
 (function () {
 'use strict';
+const DEBUG = true;
 
 /* ============================================================
    1. КОНСТАНТЫ И ГЛОБАЛЬНОЕ СОСТОЯНИЕ
@@ -1480,6 +1498,17 @@ document.getElementById('btnResume').addEventListener('click', closePause);
 document.getElementById('btnHint').addEventListener('click', function () {
   closePause();
   showHint();
+});
+/* DEBUG: пропуск фазы */
+document.getElementById('skipBtn').addEventListener('click', function () {
+  if (!DEBUG) return;
+  if (G.mode !== 'game' || !activeLevel) return;
+  if (G.paused || G.menuPaused || G.inStory) return;
+  if (typeof activeLevel.skipPhase === 'function') {
+    activeLevel.skipPhase();
+  } else {
+    levelComplete();
+  }
 });
 document.getElementById('btnRestartLvl').addEventListener('click', function () {
   closePause();
@@ -2260,6 +2289,29 @@ function Level1() {
       return Math.min(1, (done + frac) / 9);
     },
 
+
+    /* DEBUG: пропустить текущую фазу целиком */
+skipPhase: function () {
+  if (this.transT > 0 || this.done) return;
+  const self = this;
+  if (this.phase < 2) {
+    this.transT = 1.2;
+    this.transText = 'SKIP → ФАЗА ' + (this.phase + 2);
+    setTimeout(function () {
+      self.phase++;
+      self.sub = 0;
+      G.hearts = 3;
+      G.lostThisPhase = false;
+      self.startSubLevel();
+      self.transT = 0.8;
+      self.transText = 'ФАЗА ' + (self.phase + 1) + ': ' +
+        (self.phase === 1 ? 'В ГОЛОВЕ' : 'ФОРМУЛЫ');
+    }, 900);
+  } else {
+    this.done = true;
+    levelComplete();
+  }
+},
     /* ---------- ПЕРЕХОД ---------- */
     goNext: function () {
       const self = this;
@@ -2864,7 +2916,12 @@ function Level2() {
       }
     },
     onPointerDown: function () { this.jump(); },
-
+    /* DEBUG: промотать к финишу */
+    skipPhase: function () {
+      if (this.done) return;
+      this.dist = this.target;
+      // update() сам поймает финиш и вызовет levelComplete()
+    },
     spawnObstacle: function (wx) {
       const types = [
         { t: 'puddle', w: 110, h: 16 },
@@ -3183,7 +3240,6 @@ function Level3() {
           return;
         }
       }
-
       // далее — кнопки ответов
       if (this.done || this.idx >= 3) return;
       for (let i = 0; i < 3; i++) {
@@ -3218,7 +3274,16 @@ function Level3() {
         damage();
       }
     },
-
+    skipPhase: function () {
+      if (this.done) return;
+      this.solved = [true, true, true];
+      this.digits = RIDDLES.map(function (r) { return r.digit; });
+      this.idx = 3;
+      this.done = true;
+      this.doorOpen = 1;
+      const self = this;
+      setTimeout(function () { levelComplete(); }, 300);
+    }, 
     update: function (dt) {
       this.t += dt;
       if (this.msgT > 0) this.msgT -= dt;
@@ -3387,7 +3452,16 @@ function Level4() {
         w: 52, h: 64
       };
     },
-
+/* DEBUG: добить босса */
+    skipPhase: function () 
+    {
+      if (this.done) return;
+      this.bossHP = 0;
+      this.done = true;
+      this.winT = 0.4;
+      playSound('win', 0.8);
+      this.burst(this.bossX, this.dy, '#ffd873', 30);
+    },
     onPointerDown: function (x, y) {
       if (this.done) return;
       if (this.phase === 3 && this.angry <= 0) {
@@ -4038,13 +4112,14 @@ function loop(now) {
    18. КАРТА СНОВ
    ============================================================ */
 
-function updateMap() {
+function updateMap() 
+{
   const list = document.getElementById('levelList');
   list.innerHTML = '';
   for (let i = 0; i < 4; i++) {
     const n = i + 1;
     const meta = LEVEL_META[i];
-    const locked = n > G.maxUnlocked;
+    const locked = !DEBUG && n > G.maxUnlocked;
     const done = G.completed[i];
     const perfect = G.levelPerfect['l' + n] === true;
 
@@ -4154,17 +4229,20 @@ btnRestart.addEventListener('click', function () {
 
 requestAnimationFrame(loop);
 
-loadAssets(
+loadAssets
+(
   function (p) {
     const pc = Math.round(p * 100);
     if (barFill) barFill.style.width = pc + '%';
     if (pctEl) pctEl.textContent = pc + '%';
   },
-  function () {
+  function () 
+  {
     if (loaderEl) loaderEl.style.display = 'none';
     if (titleOverlay) titleOverlay.classList.add('ready');
     G.mode = 'start';
     showScreen('startScreen');
+    document.getElementById('skipBtn').style.display = DEBUG ? 'block' : 'none';
   }
 );
 
