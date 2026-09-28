@@ -886,10 +886,11 @@ const IMG_NAMES = [
   'cat_idle', 'cat_run', 'cat_jump', 'cat_sad', 'cat_happy', 'cat_sleep',
   'paper_good', 'paper_bad', 'puddle', 'bus', 'boss_grade',
   'bg_room_night', 'bg_corridor', 'bg_street', 'bg_door',
-  'bg_classroom', 'bg_morning', 'heart', 'fragment'
+  'bg_classroom', 'bg_morning', 'heart', 'fragment', 'backpack_puzzle'
 ];
 const SND_NAMES = ['jump', 'collect', 'hurt', 'win', 'alarm', 'meow', 'bgm', 'type'];
 const IMG = {}, SND = {};
+const IMG_EXT = {'cat_run': 'gif'};
 
 function loadAssets(onProgress, onDone) {
   const total = IMG_NAMES.length + SND_NAMES.length;
@@ -903,7 +904,7 @@ function loadAssets(onProgress, onDone) {
     const im = new Image();
     im.onload = function () { IMG[n] = im; tick(); };
     im.onerror = function () { IMG[n] = null; tick(); };
-    im.src = 'assets/images/' + n + '.png';
+    im.src = 'assets/images/' + n + '.' + (IMG_EXT[n] || 'png');
   });
   SND_NAMES.forEach(function (n) {
     const ext = (n === 'bgm') ? '.mp3' : '.wav';
@@ -1410,6 +1411,7 @@ function hideStory() {
   G.inStory = false;
   const cb = storyFinalCb;
   storyFinalCb = null;
+  if (G.mode === 'game') showScreen('gameScreen');
   if (cb) cb();
 }
 function skipStory() {
@@ -2875,161 +2877,662 @@ skipPhase: function () {
    11. УРОВЕНЬ 2 — «АВТОБУС» + ПРЫЖКОВЫЕ ОСКОЛКИ
    ============================================================ */
 
-function Level2() {
-  return {
-    name: 'Автобус', subtitle: 'страх опоздать',
-    GROUND: 430, GRAV: 2300,
-    dist: 0, target: 3600,
-    jy: 0, vy: 0, onGround: true,
-    obstacles: [], fragments: [],
-    nextSpawn: 760, nextFrag: 420,
-    t: 0, done: false, camShake: 0,
-    buildings: [], hintT: 4,
-    collectFx: [],
+   function Level2() {
+    return {
+      name: 'Автобус', subtitle: 'страх опоздать',
+  
+      /* ===================== ОБЩЕЕ ===================== */
+      phase: 0,                 // 0 = рюкзак, 1 = дорога, (2 = сабвей — потом)
+      t: 0,
+      hintT: 4,
+      transT: 0,
+      transText: '',
+      done: false,
+      lastMouse: { x: 0, y: 0 },
+  
+      /* ===================== ФАЗА 1: РЮКЗАК ===================== */
+      catX: 480,
+      catY: 430,               // низ кота (стоит на полу)
+      backpackW: 120,
+      backpackH: 68,
+      backpackTop: 272,        // верх рюкзака
 
-    init: function () {
-      this.dist = 0; this.jy = 0; this.vy = 0;
-      this.onGround = true; this.obstacles = [];
-      this.fragments = []; this.collectFx = [];
-      this.nextSpawn = 760; this.nextFrag = 420;
-      this.t = 0; this.done = false; this.camShake = 0;
-      this.hintT = 4;
-      this.buildings = [];
-      for (let i = 0; i < 40; i++) {
-        const r = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
-        this.buildings.push({
-          x: i * 160,
-          h: 70 + r * 150,
-          w: 110 + r * 40
+      items: [],               // падающие предметы
+      itemSpawnT: 0,
+      particles: [],
+      timer: 60,
+      targetCaught: 12,
+      caught: 0,
+
+      ITEM_TYPES: [
+        // ХОРОШИЕ (ловить)
+        { id: 'notebook', good: true,  color: '#e8d8a8', icon: 'К', r: 20, name: 'Конспект'  },
+        { id: 'apple',    good: true,  color: '#e05858', icon: 'Я', r: 20, name: 'Яблоко'    },
+        { id: 'sandwich', good: true,  color: '#c89858', icon: 'Б', r: 20, name: 'Бутерброд' },
+        { id: 'pen',      good: true,  color: '#404a78', icon: 'П', r: 20, name: 'Пенал'     },
+        { id: 'thermos',  good: true,  color: '#4a8ac8', icon: 'Т', r: 20, name: 'Термос'    },
+        // ПЛОХИЕ (не ловить)
+        { id: 'sock',     good: false, color: '#8a8a8a', icon: 'Н', r: 20, name: 'Носок'     },
+        { id: 'cup',      good: false, color: '#5a3a2a', icon: 'Ч', r: 20, name: 'Кружка'    },
+        { id: 'joystick', good: false, color: '#2a2a3a', icon: 'Д', r: 20, name: 'Джойстик'  },
+        { id: 'slipper',  good: false, color: '#6a3a4a', icon: 'Ш', r: 20, name: 'Тапок'     }
+      ],
+  
+      /* ===================== ФАЗА 2: ДОРОГА ===================== */
+      GROUND: 430, GRAV: 2300,
+      dist: 0, target: 3600,
+      jy: 0, vy: 0, onGround: true,
+      obstacles: [], fragments: [],
+      nextSpawn: 760, nextFrag: 420,
+      camShake: 0, buildings: [], collectFx: [],
+  
+      /* ============================================================ */
+      init: function () {
+        this.phase = 0;
+        this.t = 0;
+        this.hintT = 4;
+        this.done = false;
+        this.transT = 1.8;
+        this.transText = 'ФАЗА 1: РЮКЗАК';
+        this.startCatch();
+      },
+  
+      allowsDamage: function () { return  true;},
+  
+      progress: function () 
+      {
+        if (this.phase === 0) 
+        {
+        return Math.min(1, this.caught / this.targetCaught);
+        }
+        return this.dist / this.target;
+      },
+  
+      restartFromCheckpoint: function () {
+        if (this.phase === 0) this.startCatch();
+        else if (this.phase === 1) this.startRun();
+      },
+  
+      skipPhase: function () {
+        if (this.done) return;
+        const self = this;
+        if (this.phase === 0) {
+          this.transT = 1.2;
+          this.transText = 'SKIP → ФАЗА 2';
+          setTimeout(function () { self.goToRunPhase(); }, 900);
+        } else if (this.phase === 1) {
+          this.dist = this.target;   // update сам поймает финиш
+        }
+      },
+  
+      /* ============================================================
+         ФАЗА 1: ловля предметов
+         ============================================================ */
+         startCatch: function () {
+    this.dragging = null;
+    this.hintT = 4;
+    this.items = [];
+    this.itemSpawnT = 0.6;
+    this.particles = [];
+    this.timer = 60;
+    this.caught = 0;
+    this.catX = W / 2;
+    this.lastMouse.x = W / 2;
+    this.lastMouse.y = H / 2;
+  },
+
+  basketRect: function () {
+    return {
+      x: this.catX - this.backpackW / 2,
+      y: this.backpackTop,
+      w: this.backpackW,
+      h: this.backpackH
+    };
+  },
+
+  moveCat: function (x) {
+    if (x < 80) x = 80;
+    if (x > W - 80) x = W - 80;
+    this.catX = x;
+  },
+
+  sparkle: function (x, y, good) {
+    const n = good ? 10 : 14;
+    for (let i = 0; i < n; i++) {
+      this.particles.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * 280,
+        vy: (Math.random() - 0.5) * 280 - 80,
+        life: 0.5 + Math.random() * 0.3,
+        col: good
+          ? (i % 2 ? '#7ff0ff' : '#ffcd75')
+          : (i % 2 ? '#ff5566' : '#ffad33')
+      });
+    }
+  },
+
+  updateCatch: function (dt) {
+    // ---- управление клавиатурой ----
+    let kvx = 0;
+    if (G.keys['ArrowLeft'] || G.keys['KeyA']) kvx -= 1;
+    if (G.keys['ArrowRight'] || G.keys['KeyD']) kvx += 1;
+    if (kvx !== 0) this.catX += kvx * 540 * dt;
+    if (this.catX < 80) this.catX = 80;
+    if (this.catX > W - 80) this.catX = W - 80;
+
+    // ---- таймер ----
+    if (!this.done && this.timer > 0) {
+      this.timer -= dt;
+      if (this.timer < 0) this.timer = 0;
+    }
+
+    // ---- сложность растёт со временем ----
+    const prog = 1 - this.timer / 60;          // 0..1
+    const interval = Math.max(0.28, 0.85 - prog * 0.55);
+
+    // ---- спавн ----
+    if (!this.done) {
+      this.itemSpawnT -= dt;
+      if (this.itemSpawnT <= 0) {
+        this.itemSpawnT = interval;
+        const wantGood = Math.random() < 0.65;
+        const pool = this.ITEM_TYPES.filter(function (it) {
+          return it.good === wantGood;
+        });
+        const t = pool[Math.floor(Math.random() * pool.length)];
+        const wx = 60 + Math.random() * (W - 120);
+        const speed = 200 + prog * 180 + Math.random() * 60;
+        this.items.push({
+          type: t,
+          x: wx,
+          y: 130,
+          vx: (Math.random() - 0.5) * 40,
+          vy: speed,
+          rot: 0,
+          rotSpd: (Math.random() - 0.5) * 4
         });
       }
-    },
+    }
 
-    progress: function () { return this.dist / this.target; },
-    speed: function () { return 300 + Math.min(160, this.dist / 22); },
+    // ---- падение + коллизии ----
+    const bp = this.basketRect();
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      const it = this.items[i];
+      it.x += it.vx * dt;
+      it.y += it.vy * dt;
+      it.rot += it.rotSpd * dt;
+      if (it.x < 30)     { it.x = 30;     it.vx = Math.abs(it.vx); }
+      if (it.x > W - 30) { it.x = W - 30; it.vx = -Math.abs(it.vx); }
 
-    jump: function () {
-      if (this.onGround && !this.done) {
-        this.onGround = false;
-        this.vy = 830;
-        playSound('jump', 0.45);
-      }
-    },
-    onPointerDown: function () { this.jump(); },
-    /* DEBUG: промотать к финишу */
-    skipPhase: function () {
-      if (this.done) return;
-      this.dist = this.target;
-      // update() сам поймает финиш и вызовет levelComplete()
-    },
-    spawnObstacle: function (wx) {
-      const types = [
-        { t: 'puddle', w: 110, h: 16 },
-        { t: 'pit',    w: 92,  h: 26 },
-        { t: 'light',  w: 44,  h: 96 },
-        { t: 'crowd',  w: 104, h: 62 }
-      ];
-      const o = types[Math.floor(Math.random() * types.length)];
-      this.obstacles.push({ x: wx, w: o.w, h: o.h, t: o.t, wob: Math.random() * 6.28 });
-    },
+      const itR = it.type.r;
+      const hitBackpack =
+        it.x + itR > bp.x && it.x - itR < bp.x + bp.w &&
+        it.y + itR > bp.y && it.y - itR < bp.y + bp.h;
 
-    spawnFrag: function (wx) {
-      // 50/50 — в воздухе (нужен прыжок) или на земле (просто бежать)
-      const high = Math.random() < 0.55;
-      const y = high ? this.GROUND - 130 : this.GROUND - 34;
-      this.fragments.push({ x: wx, y: y, phase: Math.random() * 6.28 });
-    },
-
-    update: function (dt) {
-      this.t += dt;
-      if (this.hintT > 0) this.hintT -= dt;
-      if (G.invuln > 0) G.invuln -= dt;
-
-      if (!this.done) this.dist += this.speed() * dt;
-
-      if (!this.onGround) {
-        this.vy -= this.GRAV * dt;
-        this.jy += this.vy * dt;
-        if (this.jy <= 0) { this.jy = 0; this.vy = 0; this.onGround = true; }
-      }
-
-      // спавн препятствий
-      while (this.nextSpawn < this.dist + W + 320) {
-        this.spawnObstacle(this.nextSpawn);
-        this.nextSpawn += 270 + Math.random() * 300;
-      }
-      // спавн осколков в воздухе
-      while (this.nextFrag < this.dist + W + 260) {
-        this.spawnFrag(this.nextFrag);
-        this.nextFrag += 480 + Math.random() * 520;
-      }
-
-      // столкновения с препятствиями
-      const pb = this.GROUND - this.jy;
-      const pt = pb - 62;
-      const pl = this.dist - 22;
-      const pr = this.dist + 22;
-
-      for (let i = this.obstacles.length - 1; i >= 0; i--) {
-        const o = this.obstacles[i];
-        const ol = o.x, orr = o.x + o.w;
-        const ot = this.GROUND - o.h, ob = this.GROUND;
-        if (pr > ol + 6 && pl < orr - 6 && pb > ot + 4 && pt < ob) {
-          this.obstacles.splice(i, 1);
-          if (damage()) {
-            this.dist = Math.max(0, this.dist - 110);
-            this.camShake = 14;
-            this.onGround = false;
-            this.vy = 320;
-          }
+      if (hitBackpack) {
+        this.items.splice(i, 1);
+        if (it.type.good) {
+          this.caught++;
+          playSound('collect', 0.6);
+          this.sparkle(it.x, it.y, true);
+        } else {
+          playSound('hurt', 0.55);
+          this.sparkle(it.x, it.y, false);
+          damage();
           if (G.paused) return;
         }
+        continue;
+      }
+      if (it.y > H + 60) this.items.splice(i, 1);
+    }
+
+    // ---- частицы ----
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 620 * dt;
+      p.life -= dt;
+      if (p.life <= 0) this.particles.splice(i, 1);
+    }
+
+    // ---- победа / проигрыш ----
+    if (this.done) return;
+
+    if (this.caught >= this.targetCaught) {
+      this.done = true;
+      this.transT = 1.6;
+      this.transText = 'РЮКЗАК СОБРАН!';
+      const self = this;
+      setTimeout(function () { self.goToRunPhase(); }, 1500);
+      return;
+    }
+
+    if (this.timer <= 0) {
+      this.done = true;
+      this.transT = 1.6;
+      this.transText = 'НЕ УСПЕЛ СОБРАТЬ...';
+      const self = this;
+      setTimeout(function () {
+        self.done = false;
+        G.hearts = 3;
+        G.lostThisPhase = false;
+        self.startCatch();
+      }, 1500);
+    }
+  },
+
+  /* ============================================================
+    ОТРИСОВКА ФАЗЫ 1
+    ============================================================ */
+    drawCatch: function (c) {
+      // фон — ночная комната
+      c.fillStyle = '#0b1024';
+      c.fillRect(0, 0, W, H);
+
+      const bg = c.createRadialGradient(W * 0.5, 120, 30, W * 0.5, 120, 600);
+      bg.addColorStop(0, 'rgba(120, 90, 180, 0.20)');
+      bg.addColorStop(1, 'rgba(120, 90, 180, 0)');
+      c.fillStyle = bg;
+      c.fillRect(0, 0, W, H);
+
+      // пол
+      c.fillStyle = '#2a1f14';
+      c.fillRect(0, this.catY - 4, W, H - this.catY + 4);
+      c.fillStyle = '#3a2c1c';
+      c.fillRect(0, this.catY - 4, W, 6);
+
+      // шкаф сверху
+      this.drawCupboard(c);
+
+      // предметы
+      for (let i = 0; i < this.items.length; i++) {
+        this.drawItem(c, this.items[i]);
       }
 
-      // сбор осколков
-      const cb = {
-        x: 200 - 34,
-        y: this.GROUND - this.jy - 64,
-        w: 68, h: 64
-      };
-      for (let i = this.fragments.length - 1; i >= 0; i--) {
-        const f = this.fragments[i];
-        const sx = f.x - (this.dist - 200);
-        const fy = f.y - 22 + Math.sin(this.t * 3 + f.phase) * 4;
-        if (sx > cb.x - 24 && sx < cb.x + cb.w + 24 &&
-            fy > cb.y - 24 && fy < cb.y + cb.h + 24) {
-          this.fragments.splice(i, 1);
-          playSound('collect', 0.55);
-          addFragment();
-          this.collectFx.push({ x: sx, y: fy, t: 0.8 });
-        }
+      // частицы
+      for (let i = 0; i < this.particles.length; i++) {
+        const p = this.particles[i];
+        c.globalAlpha = Math.max(0, p.life / 0.6);
+        c.fillStyle = p.col;
+        c.fillRect(p.x - 2, p.y - 2, 4, 4);
       }
+      c.globalAlpha = 1;
 
-      // старые препятствия/осколки уходят за экран
-      for (let i = this.obstacles.length - 1; i >= 0; i--) {
-        if (this.obstacles[i].x < this.dist - 400) this.obstacles.splice(i, 1);
-      }
-      for (let i = this.fragments.length - 1; i >= 0; i--) {
-        if (this.fragments[i].x < this.dist - 200) this.fragments.splice(i, 1);
-      }
+      // кот с рюкзаком
+      this.drawCatWithBackpack(c);
 
-      // эффекты сбора
-      for (let i = this.collectFx.length - 1; i >= 0; i--) {
-        this.collectFx[i].t -= dt;
-        this.collectFx[i].y -= 40 * dt;
-        if (this.collectFx[i].t <= 0) this.collectFx.splice(i, 1);
-      }
+      // HUD фазы
+      this.drawCatchHUD(c);
 
-      if (this.camShake > 0) this.camShake = Math.max(0, this.camShake - 40 * dt);
-
-      if (!this.done && this.dist + 40 >= this.target) {
-        this.done = true;
-        setTimeout(function () { levelComplete(); }, 900);
+      if (this.hintT > 0) {
+        drawBottomHint(c, 'Двигай котом мышью или стрелками — лови нужное, пропускай мусор',
+                      this.hintT, '#7ff0ff');
       }
     },
 
-    draw: function (c) {
-      const cam = this.dist - 200;
+    drawCupboard: function (c) {
+      c.fillStyle = '#2a1c30';
+      c.fillRect(0, 112, W, 34);
+      c.fillStyle = '#3a2640';
+      c.fillRect(0, 112, W, 6);
+      c.strokeStyle = 'rgba(255,200,120,0.28)';
+      c.lineWidth = 2;
+      const n = 6;
+      for (let i = 0; i < n; i++) {
+        const dx = 8 + i * ((W - 16) / n);
+        const w = (W - 16) / n - 8;
+        c.strokeRect(dx, 122, w, 18);
+        c.fillStyle = '#ffcd75';
+        c.beginPath();
+        c.arc(dx + w - 6, 131, 2.5, 0, 7);
+        c.fill();
+      }
+      c.fillStyle = '#94b0c2';
+      c.font = 'bold 10px "PixelText", Verdana';
+      c.textAlign = 'left';
+      c.fillText('ШКАФ', 12, 108);
+    },
+
+    drawItem: function (c, it) {
+      const t = it.type;
+      c.save();
+      c.translate(it.x, it.y);
+      c.rotate(it.rot);
+
+      // тело
+      c.fillStyle = t.color;
+      c.beginPath();
+      c.arc(0, 0, t.r, 0, 7);
+      c.fill();
+
+      // контур — плохие с красным, хорошие с тёмным
+      c.strokeStyle = t.good ? 'rgba(0,0,0,0.5)' : '#ff3b57';
+      c.lineWidth = t.good ? 2 : 3;
+      c.beginPath();
+      c.arc(0, 0, t.r, 0, 7);
+      c.stroke();
+
+      // иконка
+      c.fillStyle = t.good ? '#1a1c2c' : '#fff';
+      c.font = 'bold 18px "PixelTitle", Verdana';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(t.icon, 0, 1);
+
+      // крестик на плохих
+      if (!t.good) {
+        c.strokeStyle = 'rgba(255,60,80,0.9)';
+        c.lineWidth = 2;
+        c.beginPath();
+        c.moveTo(-t.r - 5, -t.r - 5);
+        c.lineTo( t.r + 5,  t.r + 5);
+        c.moveTo( t.r + 5, -t.r - 5);
+        c.lineTo(-t.r - 5,  t.r + 5);
+        c.stroke();
+      }
+
+      c.restore();
+      c.textBaseline = 'alphabetic';
+    },
+
+    drawCatWithBackpack: function (c) {
+      const cx = this.catX;
+      const bp = this.basketRect();
+
+      // «лапы» от рюкзака к коту
+      c.strokeStyle = '#4a6fd4';
+      c.lineWidth = 7;
+      c.lineCap = 'round';
+      const catHeadY = this.catY - 58;
+      c.beginPath();
+      c.moveTo(cx - 32, bp.y + bp.h);
+      c.lineTo(cx - 22, catHeadY + 4);
+      c.moveTo(cx + 32, bp.y + bp.h);
+      c.lineTo(cx + 22, catHeadY + 4);
+      c.stroke();
+
+      // корпус рюкзака
+      c.fillStyle = '#c8422e';
+      rr(c, bp.x, bp.y, bp.w, bp.h, 12);
+      c.fill();
+      c.strokeStyle = '#7a1f14';
+      c.lineWidth = 3;
+      rr(c, bp.x, bp.y, bp.w, bp.h, 12);
+      c.stroke();
+
+      // крышка
+      c.fillStyle = '#a03220';
+      rr(c, bp.x + 6, bp.y - 8, bp.w - 12, 22, 8);
+      c.fill();
+
+      // «приёмное» отверстие внутри
+      c.fillStyle = 'rgba(0,0,0,0.7)';
+      rr(c, bp.x + 10, bp.y + 18, bp.w - 20, bp.h - 26, 6);
+      c.fill();
+
+      // замок
+      c.fillStyle = '#ffcd75';
+      c.beginPath();
+      c.arc(cx, bp.y + 6, 5, 0, 7);
+      c.fill();
+
+      // кот
+      const catBlink = (G.invuln > 0 && Math.floor(G.invuln * 12) % 2 === 0);
+      if (!catBlink) {
+        if (IMG['cat_idle']) {
+          c.drawImage(IMG['cat_idle'], cx - 40, this.catY - 78, 80, 78);
+        } else {
+          drawCat(c, cx, this.catY, 0.78, { t: this.t, run: 0, flip: false });
+        }
+      }
+
+      // подпись
+      c.fillStyle = '#7ff0ff';
+      c.font = 'bold 11px "PixelText", Verdana';
+      c.textAlign = 'center';
+      c.fillText('▲ ЛОВИ!', cx, bp.y - 14);
+      c.textAlign = 'left';
+    },
+
+    drawCatchHUD: function (c) {
+      const by = 74;
+
+      // прогресс-бар
+      const barW = 320;
+      const bx = 40;
+
+      c.fillStyle = 'rgba(6,10,24,0.75)';
+      rr(c, bx - 6, by, barW + 12, 26, 6); c.fill();
+      c.strokeStyle = '#4a63b8';
+      c.lineWidth = 2;
+      rr(c, bx - 6, by, barW + 12, 26, 6); c.stroke();
+
+      const pct = Math.min(1, this.caught / this.targetCaught);
+      if (pct > 0) {
+        c.fillStyle = 'rgba(80,220,120,0.9)';
+        rr(c, bx, by + 4, barW * pct, 18, 4); c.fill();
+      }
+
+      c.fillStyle = '#fff';
+      c.font = 'bold 12px "PixelText", Verdana';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(this.caught + ' / ' + this.targetCaught, bx + barW / 2, by + 13);
+      c.textBaseline = 'alphabetic';
+
+      // таймер
+      const tt = Math.ceil(this.timer);
+      const tCol = this.timer < 10 ? '#ff5566' : '#7ff0ff';
+
+      c.fillStyle = 'rgba(6,10,24,0.75)';
+      rr(c, W - 160, by, 120, 26, 6); c.fill();
+      c.strokeStyle = tCol;
+      c.lineWidth = 2;
+      rr(c, W - 160, by, 120, 26, 6); c.stroke();
+
+      c.fillStyle = tCol;
+      c.font = 'bold 16px "PixelText", Verdana';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(tt + ' с', W - 100, by + 14);
+      c.textBaseline = 'alphabetic';
+      c.textAlign = 'left';
+    },  
+        goToRunPhase: function () {
+          G.hearts = 3;
+          G.lostThisPhase = false;
+          this.phase = 1;
+          this.startRun();
+          this.transT = 1.0;
+          this.transText = 'ФАЗА 2: ДОРОГА';
+        },
+    
+      /* ============================================================
+         ФАЗА 2: ДОРОГА
+         ============================================================ */
+      startRun: function () {
+        this.done = false;
+        this.dist = 0; this.jy = 0; this.vy = 0;
+        this.onGround = true; this.obstacles = [];
+        this.fragments = []; this.collectFx = [];
+        this.nextSpawn = 760; this.nextFrag = 420;
+        this.t = 0; this.camShake = 0;
+        this.hintT = 4;
+        this.buildings = [];
+        for (let i = 0; i < 40; i++) {
+          const r = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
+          this.buildings.push({ x: i * 160, h: 70 + r * 150, w: 110 + r * 40 });
+        }
+      },
+  
+      runJump: function () {
+        if (this.onGround && !this.done) {
+          this.onGround = false;
+          this.vy = 830;
+          playSound('jump', 0.45);
+        }
+      },
+  
+      spawnObstacle: function (wx) {
+        const types = [
+          { t: 'puddle', w: 110, h: 16 },
+          { t: 'pit',    w: 92,  h: 26 },
+          { t: 'light',  w: 44,  h: 96 },
+          { t: 'crowd',  w: 104, h: 62 }
+        ];
+        const o = types[Math.floor(Math.random() * types.length)];
+        this.obstacles.push({ x: wx, w: o.w, h: o.h, t: o.t, wob: Math.random() * 6.28 });
+      },
+  
+      spawnFrag: function (wx) {
+        const high = Math.random() < 0.55;
+        const y = high ? this.GROUND - 130 : this.GROUND - 34;
+        this.fragments.push({ x: wx, y: y, phase: Math.random() * 6.28 });
+      },
+  
+      speed: function () { return 300 + Math.min(160, this.dist / 22); },
+  
+      /* ============================================================
+         ДИСПЕТЧЕРЫ
+         ============================================================ */
+      jump: function () {
+        if (this.phase === 1) this.runJump();
+      },
+      onPointerDown: function (x, y) {
+        if (this.phase === 1) this.runJump();
+      },
+      onPointerMove: function (x, y) {
+        if (this.phase === 0) this.moveCat(x);
+      },
+      onPointerUp: function (x, y) {
+      },
+  
+      /* ============================================================
+         UPDATE
+         ============================================================ */
+      update: function (dt) {
+        this.t += dt;
+        if (this.hintT > 0) this.hintT -= dt;
+        if (this.transT > 0) this.transT -= dt;
+        if (G.invuln > 0) G.invuln -= dt;
+        if (this.phase === 0) this.updateCatch(dt);
+        if (this.phase === 1) this.updateRun(dt);
+      },
+  
+      updateRun: function (dt) {
+        if (!this.done) this.dist += this.speed() * dt;
+
+        if (!this.onGround) {
+          this.vy -= this.GRAV * dt;
+          this.jy += this.vy * dt;
+          if (this.jy <= 0) { this.jy = 0; this.vy = 0; this.onGround = true; }
+        }
+
+        // спавн препятствий
+        while (this.nextSpawn < this.dist + W + 320) {
+          this.spawnObstacle(this.nextSpawn);
+          this.nextSpawn += 270 + Math.random() * 300;
+        }
+        // спавн осколков
+        while (this.nextFrag < this.dist + W + 260) {
+          this.spawnFrag(this.nextFrag);
+          this.nextFrag += 480 + Math.random() * 520;
+        }
+
+        // столкновения с препятствиями
+        const pb = this.GROUND - this.jy;
+        const pt = pb - 62;
+        const pl = this.dist - 22;
+        const pr = this.dist + 22;
+
+        for (let i = this.obstacles.length - 1; i >= 0; i--) {
+          const o = this.obstacles[i];
+          const ol = o.x, orr = o.x + o.w;
+          const ot = this.GROUND - o.h, ob = this.GROUND;
+          if (pr > ol + 6 && pl < orr - 6 && pb > ot + 4 && pt < ob) {
+            this.obstacles.splice(i, 1);
+            if (damage()) {
+              this.dist = Math.max(0, this.dist - 110);
+              this.camShake = 14;
+              this.onGround = false;
+              this.vy = 320;
+            }
+            if (G.paused) return;
+          }
+        }
+
+        // ★ СБОР ОСКОЛКОВ
+        const cam = this.dist - 200;
+        const catBox = {
+          x: 200 - 34,
+          y: this.GROUND - this.jy - 64,
+          w: 68,
+          h: 64
+        };
+        for (let i = this.fragments.length - 1; i >= 0; i--) {
+          const f = this.fragments[i];
+          const sx = f.x - cam;
+          const fy = f.y - 22 + Math.sin(this.t * 3 + f.phase) * 4;
+          if (sx > catBox.x - 24 && sx < catBox.x + catBox.w + 24 &&
+              fy > catBox.y - 24 && fy < catBox.y + catBox.h + 24) {
+            this.fragments.splice(i, 1);
+            playSound('collect', 0.55);
+            addFragment();
+            this.collectFx.push({ x: sx, y: fy, t: 0.8 });
+          }
+        }
+
+        // уборка ушедших объектов
+        for (let i = this.obstacles.length - 1; i >= 0; i--) {
+          if (this.obstacles[i].x < this.dist - 400) this.obstacles.splice(i, 1);
+        }
+        for (let i = this.fragments.length - 1; i >= 0; i--) {
+          if (this.fragments[i].x < this.dist - 200) this.fragments.splice(i, 1);
+        }
+
+        // анимация «+1»
+        for (let i = this.collectFx.length - 1; i >= 0; i--) {
+          this.collectFx[i].t -= dt;
+          this.collectFx[i].y -= 40 * dt;
+          if (this.collectFx[i].t <= 0) this.collectFx.splice(i, 1);
+        }
+
+        // затухание тряски
+        if (this.camShake > 0) this.camShake = Math.max(0, this.camShake - 40 * dt);
+
+        // финиш
+        if (!this.done && this.dist + 40 >= this.target) {
+          this.done = true;
+          setTimeout(function () { levelComplete(); }, 900);
+        }
+      },
+  
+      /* ============================================================
+         DRAW
+         ============================================================ */
+      draw: function (c) {
+        if (this.phase === 0) this.drawCatch(c);
+        else if (this.phase === 1) this.drawRun(c);
+        if (this.transT > 0) this.drawTransition(c);
+        drawHUD(c);
+      },
+  
+      drawTransition: function (c) {
+        const a = Math.min(1, this.transT * 1.6);
+        c.fillStyle = 'rgba(5,8,20,' + (a * 0.9) + ')';
+        c.fillRect(0, 0, W, H);
+        c.fillStyle = '#cfe0ff';
+        c.font = 'bold 30px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(this.transText, W / 2, H / 2);
+        c.textBaseline = 'alphabetic';
+      },
+  
+      /* ---------- ОТРИСОВКА ФАЗЫ 2 ---------- */
+      drawRun: function (c) {
+        const cam = this.dist - 200;
       const shake = this.camShake > 0 ? (Math.random() * 2 - 1) * this.camShake * 0.5 : 0;
 
       drawBackground(c, 'bg_street', '#0b1430', '#111d3d');
@@ -3150,17 +3653,10 @@ function Level2() {
         if (IMG[imgName]) c.drawImage(IMG[imgName], 200 - 45, catY - 90, 90, 90);
         else drawCat(c, 200, catY, 0.82, { t: this.t, run: this.onGround ? 1 : 0, flip: false });
       }
-
       c.restore();
-
-      if (this.hintT > 0) {
-        drawBottomHint(c, 'Пробел — прыжок. Собери осколки!',
-                       this.hintT, '#7ff0ff');
       }
-      drawHUD(c);
-    }
-  };
-}
+    };
+  }
 
 /* ============================================================
    12. УРОВЕНЬ 3 — «ПИН-КОД» + СПРЯТАННЫЕ ОСКОЛКИ
