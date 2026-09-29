@@ -937,11 +937,12 @@ const LEVEL_HINTS = {
    ============================================================ */
 
 const IMG_NAMES = [
-  'cat_idle', 'cat_run_sheet', 'cat_jump', 'cat_sad', 'cat_happy', 'cat_sleep',
+  'cat_idle', 'cat_run', 'cat_jump', 'cat_sad', 'cat_happy', 'cat_sleep',
   'paper_good', 'paper_bad', 'puddle', 'bus', 'boss_grade',
   'bg_room_night', 'bg_corridor', 'bg_street', 'bg_door',
   'bg_classroom', 'bg_morning', 'heart', 'fragment', 'backpack_puzzle','road',
-  'traffic_light', 'crowd', 'plt'
+  'traffic_light', 'crowd', 'plt',
+  'page_1', 'page_2', 'page_3'
 ];
 const SND_NAMES = ['jump', 'collect', 'hurt', 'win', 'alarm', 'meow', 'bgm', 'type'];
 const IMG = {}, SND = {};
@@ -2114,7 +2115,17 @@ function Level1() {
       const startX = (W - noteSize) / 2;
       const startY = 145;
 
-      this.pageCanvas = this.buildPageCanvas(noteSize, noteSize, this.sub);
+      // Пытаемся взять нарисованную подругой страницу: page_1, page_2, page_3
+      const pageKeys = ['page_1', 'page_2', 'page_3'];
+      const pageImg = IMG[pageKeys[this.sub]];
+
+      if (pageImg && pageImg.complete && pageImg.naturalWidth > 0) {
+        // Есть картинка — используем её
+        this.pageCanvas = this.buildPageFromImage(pageImg, noteSize);
+      } else {
+        // Нет — процедурный конспект (как раньше)
+        this.pageCanvas = this.buildPageCanvas(noteSize, noteSize, this.sub);
+      }
 
       this.slots = [];
       this.pieces = [];
@@ -2221,6 +2232,32 @@ function Level1() {
         if (variant === 0) this.drawNoteVariant0(g, w, h);
         else if (variant === 1) this.drawNoteVariant1(g, w, h);
         else this.drawNoteVariant2(g, w, h);
+
+        return c;
+      },
+      buildPageFromImage: function (img, targetSize) {
+        const c = document.createElement('canvas');
+        c.width = targetSize;
+        c.height = targetSize;
+        const g = c.getContext('2d');
+
+        // Фон (на случай, если картинка не квадратная — пустоты будут цвета бумаги)
+        const bgGrad = g.createLinearGradient(0, 0, 0, targetSize);
+        bgGrad.addColorStop(0, '#f6efd8');
+        bgGrad.addColorStop(1, '#e8dcbd');
+        g.fillStyle = bgGrad;
+        g.fillRect(0, 0, targetSize, targetSize);
+
+        // Вписываем картинку с сохранением пропорций (contain)
+        const natW = img.naturalWidth;
+        const natH = img.naturalHeight;
+        const scale = Math.min(targetSize / natW, targetSize / natH);
+        const dw = natW * scale;
+        const dh = natH * scale;
+        const dx = (targetSize - dw) / 2;
+        const dy = (targetSize - dh) / 2;
+
+        g.drawImage(img, dx, dy, dw, dh);
 
         return c;
       },
@@ -3658,7 +3695,7 @@ skipPhase: function () {
           { t: 'puddle', w: 48,  h: 60 },   // мусорка
           { t: 'pit',    w: 92,  h: 26 },   // люк плоский
           { t: 'light',  w: 44,  h: 96 },   // светофор
-          { t: 'crowd',  w: 104, h: 110 }   // толпа выше
+          { t: 'crowd',  w: 104, h: 85 }   // толпа выше
         ];
         const o = types[Math.floor(Math.random() * types.length)];
         this.obstacles.push({ x: wx, w: o.w, h: o.h, t: o.t, wob: Math.random() * 6.28 });
