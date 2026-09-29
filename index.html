@@ -886,7 +886,7 @@ const IMG_NAMES = [
   'cat_idle', 'cat_run', 'cat_jump', 'cat_sad', 'cat_happy', 'cat_sleep',
   'paper_good', 'paper_bad', 'puddle', 'bus', 'boss_grade',
   'bg_room_night', 'bg_corridor', 'bg_street', 'bg_door',
-  'bg_classroom', 'bg_morning', 'heart', 'fragment', 'backpack_puzzle'
+  'bg_classroom', 'bg_morning', 'heart', 'fragment', 'backpack_puzzle','road'
 ];
 const SND_NAMES = ['jump', 'collect', 'hurt', 'win', 'alarm', 'meow', 'bgm', 'type'];
 const IMG = {}, SND = {};
@@ -1075,7 +1075,8 @@ function drawBottomHint(c, text, alpha, color) {
 }
 
 /* ---------- Кот ---------- */
-function drawCat(c, x, y, scale, opts) {
+function drawCat(c, x, y, scale, opts) 
+{
   opts = opts || {};
   const t = opts.t || 0;
   const breathe = Math.sin(t * 2.2) * 1.4;
@@ -1119,6 +1120,21 @@ function drawCat(c, x, y, scale, opts) {
   c.fillStyle = '#ffb3c8';
   c.beginPath(); c.moveTo(16, -46); c.lineTo(21, -46); c.lineTo(18.5, -43); c.closePath(); c.fill();
   c.restore();
+}
+
+function drawSprite(c, img, x, y, w, h, flip) 
+{
+  if (!img || !img.complete || img.naturalWidth === 0) return false;
+  c.save();
+  if (flip) {
+    c.translate(x + w / 2, y + h / 2);
+    c.scale(-1, 1);
+    c.drawImage(img, -w / 2, -h / 2, w, h);
+  } else {
+    c.drawImage(img, x, y, w, h);
+  }
+  c.restore();
+  return true;
 }
 
 function drawPaper(c, x, y, rot, good, t) {
@@ -1769,39 +1785,64 @@ function goLevel(n, isRestart) {
 
 function drawHUD(c) {
   if (!activeLevel) return;
-
   c.fillStyle = 'rgba(6,10,24,.58)';
   c.fillRect(0, 0, W, 66);
 
   // Сердца — только если уровень/фаза позволяет урон
   const showHearts = !activeLevel.allowsDamage ||
-                     activeLevel.allowsDamage();
+                   activeLevel.allowsDamage();
+
   if (showHearts) {
+    const hasHeartImg = IMG['heart'] && IMG['heart'].complete &&
+                      IMG['heart'].naturalWidth > 0;
+
     for (let i = 0; i < 3; i++) {
       const x = 40 + i * 42, y = 33;
-      if (i < G.hearts) {
+      const filled = i < G.hearts;
+
+      if (hasHeartImg) {
+      // — картинка heart.png —
+        c.save();
+        if (!filled) c.globalAlpha = 0.25;
+        c.drawImage(IMG['heart'], x - 16, y - 16, 32, 32);
+        c.restore();
+    } else {
+      // — резерв: векторное сердце —
+      if (filled) {
         c.fillStyle = '#ff4d6d';
         heartPath(c, x, y, 22); c.fill();
         c.fillStyle = 'rgba(255,255,255,.35)';
-        c.beginPath(); c.ellipse(x - 5, y - 6, 3.5, 2.5, -0.5, 0, 7); c.fill();
+        c.beginPath();
+        c.ellipse(x - 5, y - 6, 3.5, 2.5, -0.5, 0, 7);
+        c.fill();
       } else {
         c.strokeStyle = 'rgba(255,110,140,.45)';
         c.lineWidth = 2;
         heartPath(c, x, y, 22); c.stroke();
       }
     }
+  }
+} else {
+  // безопасная фаза — сердечек нет
+  c.fillStyle = 'rgba(115,240,247,.55)';
+  c.font = 'bold 15px Verdana';
+  c.textAlign = 'left';
+  c.textBaseline = 'middle';
+  c.fillText('☾ безопасный сон', 40, 34);
+  c.textBaseline = 'alphabetic';
+}
+
+  // — кристалл: спрайт или векторный резерв —
+  const hasFragImg = IMG['fragment'] && IMG['fragment'].complete &&
+                    IMG['fragment'].naturalWidth > 0;
+
+  if (hasFragImg) {
+    c.drawImage(IMG['fragment'], 196 - 14, 33 - 14, 28, 28);
   } else {
-    // тихая иконка «безопасная фаза»
-    c.fillStyle = 'rgba(115,240,247,.55)';
-    c.font = 'bold 15px Verdana';
-    c.textAlign = 'left';
-    c.textBaseline = 'middle';
-    c.fillText('☾ безопасный сон', 40, 34);
-    c.textBaseline = 'alphabetic';
+    c.fillStyle = '#7ff0ff';
+    drawGem(c, 196, 33, 13);
   }
 
-  c.fillStyle = '#7ff0ff';
-  drawGem(c, 196, 33, 13);
   c.fillStyle = '#d8ecff';
   c.font = 'bold 20px Verdana';
   c.textAlign = 'left';
@@ -2904,6 +2945,8 @@ skipPhase: function () {
       targetCaught: 12,
       caught: 0,
 
+      catFacing: 1,// влево кот и вправо
+
       ITEM_TYPES: [
         // ХОРОШИЕ (ловить)
         { id: 'notebook', good: true,  color: '#e8d8a8', icon: 'К', r: 20, name: 'Конспект'  },
@@ -2991,6 +3034,8 @@ skipPhase: function () {
   },
 
   moveCat: function (x) {
+    if (x < this.catX - 1) this.catFacing = -1;
+    if (x > this.catX + 1) this.catFacing = 1;
     if (x < 80) x = 80;
     if (x > W - 80) x = W - 80;
     this.catX = x;
@@ -3016,7 +3061,11 @@ skipPhase: function () {
     let kvx = 0;
     if (G.keys['ArrowLeft'] || G.keys['KeyA']) kvx -= 1;
     if (G.keys['ArrowRight'] || G.keys['KeyD']) kvx += 1;
-    if (kvx !== 0) this.catX += kvx * 540 * dt;
+    if (kvx !== 0)
+    {
+      this.catX += kvx * 540 * dt;
+      this.catFacing = kvx > 0 ? 1 : -1;
+    }
     if (this.catX < 80) this.catX = 80;
     if (this.catX > W - 80) this.catX = W - 80;
 
@@ -3240,18 +3289,6 @@ skipPhase: function () {
       const cx = this.catX;
       const bp = this.basketRect();
 
-      // «лапы» от рюкзака к коту
-      c.strokeStyle = '#4a6fd4';
-      c.lineWidth = 7;
-      c.lineCap = 'round';
-      const catHeadY = this.catY - 58;
-      c.beginPath();
-      c.moveTo(cx - 32, bp.y + bp.h);
-      c.lineTo(cx - 22, catHeadY + 4);
-      c.moveTo(cx + 32, bp.y + bp.h);
-      c.lineTo(cx + 22, catHeadY + 4);
-      c.stroke();
-
       // корпус рюкзака
       c.fillStyle = '#c8422e';
       rr(c, bp.x, bp.y, bp.w, bp.h, 12);
@@ -3278,12 +3315,14 @@ skipPhase: function () {
       c.fill();
 
       // кот
+
+      const flip = this.catFacing < 0;
       const catBlink = (G.invuln > 0 && Math.floor(G.invuln * 12) % 2 === 0);
-      if (!catBlink) {
-        if (IMG['cat_idle']) {
-          c.drawImage(IMG['cat_idle'], cx - 40, this.catY - 78, 80, 78);
-        } else {
-          drawCat(c, cx, this.catY, 0.78, { t: this.t, run: 0, flip: false });
+
+      if (!catBlink) 
+      {
+        if (!drawSprite(c, IMG['cat_idle'], cx - 40, this.catY - 78, 80, 78, flip)) {
+          drawCat(c, cx, this.catY, 0.78, { t: this.t, run: 0, flip: flip });
         }
       }
 
@@ -3533,46 +3572,33 @@ skipPhase: function () {
       /* ---------- ОТРИСОВКА ФАЗЫ 2 ---------- */
       drawRun: function (c) {
         const cam = this.dist - 200;
-      const shake = this.camShake > 0 ? (Math.random() * 2 - 1) * this.camShake * 0.5 : 0;
-
-      drawBackground(c, 'bg_street', '#0b1430', '#111d3d');
-      c.save();
-      c.translate(shake, 0);
-
-      // дома
-      c.fillStyle = '#0d1734';
-      const span = 40 * 160;
-      for (let i = 0; i < this.buildings.length; i++) {
-        const b = this.buildings[i];
-        let sx = (b.x - cam * 0.35) % span;
-        if (sx < 0) sx += span;
-        sx -= 200;
-        if (sx > -220 && sx < W + 220) {
-          c.fillRect(sx, this.GROUND - b.h - 40, b.w, b.h + 60);
-          c.fillStyle = 'rgba(255,225,150,.35)';
-          for (let k = 0; k < 4; k++) for (let m = 0; m < 3; m++) {
-            if (((i + k * 3 + m * 7) % 5) === 0)
-              c.fillRect(sx + 14 + m * 30, this.GROUND - b.h - 20 + k * 30, 14, 16);
-          }
-          c.fillStyle = '#0d1734';
+        const shake = this.camShake > 0 ? (Math.random() * 2 - 1) * this.camShake * 0.5 : 0;
+        // параллакс-фон: две копии картинки, уезжающих влево
+        if (IMG['bg_street'] && IMG['bg_street'].complete) 
+        {
+          const scroll = (this.dist * 0.25) % W;
+          c.drawImage(IMG['bg_street'], -scroll, 0, W, H);
+          c.drawImage(IMG['bg_street'], W - scroll, 0, W, H);
+        } 
+        else 
+        {
+          drawBackground(c, 'bg_street', '#0b1430', '#111d3d');
         }
+
+        c.save();
+        c.translate(shake, 0);
+
+
+      // дорога
+      const roadH = H - this.GROUND + 10;
+      const tileW = IMG['road'].naturalWidth * (roadH / IMG['road'].naturalHeight);
+      const offset = this.dist % tileW;      // сдвиг влево
+      let dx = -offset;
+      while (dx < W) 
+      {
+        c.drawImage(IMG['road'], dx, this.GROUND, tileW, roadH);
+        dx += tileW;
       }
-
-      // земля
-      c.fillStyle = '#141c33';
-      c.fillRect(-50, this.GROUND, W + 100, H - this.GROUND + 20);
-      c.fillStyle = '#1d2745';
-      c.fillRect(-50, this.GROUND, W + 100, 8);
-
-      c.strokeStyle = 'rgba(200,210,255,.18)';
-      c.lineWidth = 4;
-      c.setLineDash([42, 40]);
-      c.beginPath();
-      const off = -((this.dist) % 82);
-      c.moveTo(off - 82, this.GROUND + 58);
-      c.lineTo(W + 82, this.GROUND + 58);
-      c.stroke();
-      c.setLineDash([]);
 
       // препятствия
       for (let i = 0; i < this.obstacles.length; i++) {
@@ -3913,8 +3939,10 @@ function Level4() {
     frags: [], fragT: 3,
     particles: [], floatText: [],
     hintT: 4, winT: 0, done: false,
+    catFacing: 1, // 1 = вправо, -1 = влево
 
     init: function () {
+      this.catFacing = 1;
       this.catX = 300; this.jy = 0; this.vy = 0;
       this.onGround = true; this.targetX = null;
       this.bossX = 720; this.bossY = 170; this.dy = 170;
@@ -3958,6 +3986,12 @@ function Level4() {
       playSound('win', 0.8);
       this.burst(this.bossX, this.dy, '#ffd873', 30);
     },
+
+    restartFromCheckpoint: function () 
+    {
+      this.init();             // перезапуск боя с нуля
+    },
+
     onPointerDown: function (x, y) {
       if (this.done) return;
       if (this.phase === 3 && this.angry <= 0) {
@@ -4015,11 +4049,23 @@ function Level4() {
       if (G.keys['ArrowLeft'] || G.keys['KeyA'])  { dx -= 1; this.targetX = null; }
       if (G.keys['ArrowRight'] || G.keys['KeyD']) { dx += 1; this.targetX = null; }
 
-      if (dx !== 0) this.catX += dx * 340 * dt;
-      else if (this.targetX !== null) {
+      if (dx !== 0) 
+      {
+        this.catX += dx * 340 * dt;
+        this.catFacing = dx > 0 ? 1 : -1;          // ← клавиатура
+      } 
+      else if (this.targetX !== null) 
+      {
         const diff = this.targetX - this.catX;
-        if (Math.abs(diff) < 6) this.targetX = null;
-        else this.catX += Math.sign(diff) * Math.min(340 * dt, Math.abs(diff));
+        if (Math.abs(diff) < 6) 
+        {
+          this.targetX = null;
+        } 
+        else 
+        {
+          this.catX += Math.sign(diff) * Math.min(340 * dt, Math.abs(diff));
+          this.catFacing = diff > 0 ? 1 : -1;      // ← клик мышью
+        }
       }
       this.catX = Math.max(52, Math.min(W - 52, this.catX));
 
@@ -4334,11 +4380,17 @@ function Level4() {
         let name = 'cat_idle';
         if (!this.onGround) name = 'cat_jump';
         else if (G.keys['ArrowLeft'] || G.keys['ArrowRight'] ||
-                 G.keys['KeyA'] || G.keys['KeyD'] || this.targetX !== null) name = 'cat_run';
-        if (IMG[name]) c.drawImage(IMG[name], this.catX - 45, catY - 92, 90, 92);
-        else drawCat(c, this.catX, catY, 0.85, {
-          t: this.t, run: this.onGround ? 1 : 0, flip: false, pose: 'sad'
-        });
+                G.keys['KeyA'] || G.keys['KeyD'] || this.targetX !== null) {
+          name = 'cat_run';
+        }
+
+        const flip = this.catFacing < 0;
+
+        if (!drawSprite(c, IMG[name], this.catX - 45, catY - 92, 90, 92, flip)) {
+          drawCat(c, this.catX, catY, 0.85, {
+            t: this.t, run: this.onGround ? 1 : 0, flip: flip, pose: 'sad'
+          });
+        }
       }
 
       if (this.hintT > 0) {
