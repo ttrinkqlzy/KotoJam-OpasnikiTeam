@@ -937,7 +937,7 @@ const LEVEL_HINTS = {
    ============================================================ */
 
 const IMG_NAMES = [
-  'cat_idle', 'cat_run', 'cat_jump', 'cat_sad', 'cat_happy', 'cat_sleep',
+  'cat_idle', 'cat_run_sheet', 'cat_jump', 'cat_sad', 'cat_happy', 'cat_sleep',
   'paper_good', 'paper_bad', 'puddle', 'bus', 'boss_grade',
   'bg_room_night', 'bg_corridor', 'bg_street', 'bg_door',
   'bg_classroom', 'bg_morning', 'heart', 'fragment', 'backpack_puzzle','road',
@@ -4693,7 +4693,9 @@ function Level4() {
 
         const flip = this.catFacing < 0;
 
-        if (!drawSprite(c, IMG[name], this.catX - 45, catY - 92, 90, 92, flip)) {
+        if (name === 'cat_run_sheet' && IMG['cat_run_sheet']) {
+          drawAnimated(c, IMG['cat_run_sheet'], this.catX - 45, catY - 92, 90, 92, flip, this.t, 10, 3);
+        } else if (!drawSprite(c, IMG[name], this.catX - 45, catY - 92, 90, 92, flip)) {
           drawCat(c, this.catX, catY, 0.85, {
             t: this.t, run: this.onGround ? 1 : 0, flip: flip, pose: 'sad'
           });
@@ -5077,7 +5079,7 @@ btnStart.addEventListener('click', function () {
 
 btnRestart.addEventListener('click', function () {
   G.hearts = 3;
-  getTotalFragments() = 0;
+  G.fragmentsByLevel = [0, 0, 0, 0];
   G.currentLevel = 1;
   G.maxUnlocked = 1;
   G.completed = [false, false, false, false];
