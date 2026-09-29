@@ -297,6 +297,12 @@ h1 span {
   text-align: center;
   margin-top: 2px;
 }
+.lvl-frag {
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-align: center;
+  margin-top: 2px;
+}
 .lvl-num {
   font-size: 10px;
   letter-spacing: 2px;
@@ -459,7 +465,47 @@ h1 span {
   0%, 100% { opacity: 0.35; transform: translateX(0); }
   50%      { opacity: 1;    transform: translateX(6px); }
 }
-
+/* ============================================================
+   ПРЕДУПРЕЖДЕНИЕ (модальное окно)
+   ============================================================ */
+.warn-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 8, 20, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s steps(3);
+  z-index: 950;
+}
+.warn-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.warn-panel {
+  background: var(--c-panel);
+  border: 4px solid var(--c-accent);
+  padding: 30px 44px;
+  max-width: 560px;
+  text-align: center;
+  box-shadow: 8px 8px 0 var(--c-shadow);
+}
+.warn-title {
+  margin: 0 0 16px;
+  font-family: 'PixelTitle', monospace;
+  font-size: 18px;
+  letter-spacing: 4px;
+  color: var(--c-accent);
+  text-shadow: 2px 2px 0 var(--c-shadow);
+}
+.warn-text {
+  margin: 0 0 24px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--c-text);
+}
 /* ============================================================
    ПАУЗА
    ============================================================ */
@@ -725,7 +771,13 @@ h1 span {
         <div class="story-arrow" id="storyArrow">▸</div>
       </div>
     </div>
-
+    <div class="warn-overlay" id="warnOverlay">
+      <div class="warn-panel">
+        <h3 class="warn-title" id="warnTitle">ВНИМАНИЕ</h3>
+        <p class="warn-text" id="warnText">Текст</p>
+        <button class="btn" id="warnOk">ПОНЯТНО</button>
+      </div>
+    </div>
     <div id="fade"></div>
     <div id="achievement"></div>
   </div>
@@ -741,16 +793,18 @@ const DEBUG = true;
    ============================================================ */
 
 const W = 960, H = 540;
+const MAX_FRAGMENTS_PER_LEVEL = 5;
 
 const G = {
   mode: 'loading',
   inStory: false,
   seenStory: {},
+  seenWarn: {}, 
   hearts: 3,
   lostThisPhase: false,          // потерял ли сердце в текущей фазе
   lostThisLevel: false,          // потерял ли сердце за весь заход уровня
   levelPerfect: {},              // { 'l1': true, 'l2': false, ... }
-  fragments: 0,
+  fragmentsByLevel: [0, 0, 0, 0],
   currentLevel: 1,
   maxUnlocked: 1,
   completed: [false, false, false, false],
@@ -883,14 +937,15 @@ const LEVEL_HINTS = {
    ============================================================ */
 
 const IMG_NAMES = [
-  'cat_idle', 'cat_run', 'cat_jump', 'cat_sad', 'cat_happy', 'cat_sleep',
+  'cat_idle', 'cat_run_sheet', 'cat_jump', 'cat_sad', 'cat_happy', 'cat_sleep',
   'paper_good', 'paper_bad', 'puddle', 'bus', 'boss_grade',
   'bg_room_night', 'bg_corridor', 'bg_street', 'bg_door',
-  'bg_classroom', 'bg_morning', 'heart', 'fragment', 'backpack_puzzle','road'
+  'bg_classroom', 'bg_morning', 'heart', 'fragment', 'backpack_puzzle','road',
+  'traffic_light', 'crowd', 'plt'
 ];
 const SND_NAMES = ['jump', 'collect', 'hurt', 'win', 'alarm', 'meow', 'bgm', 'type'];
 const IMG = {}, SND = {};
-const IMG_EXT = {'cat_run': 'gif'};
+const IMG_EXT = {};
 
 function loadAssets(onProgress, onDone) {
   const total = IMG_NAMES.length + SND_NAMES.length;
@@ -1132,6 +1187,22 @@ function drawSprite(c, img, x, y, w, h, flip)
     c.drawImage(img, -w / 2, -h / 2, w, h);
   } else {
     c.drawImage(img, x, y, w, h);
+  }
+  c.restore();
+  return true;
+}
+function drawAnimated(c, img, x, y, w, h, flip, time, fps, frames) {
+  if (!img || !img.complete || img.naturalWidth === 0) return false;
+  const fw = img.naturalWidth / frames;
+  const fh = img.naturalHeight;
+  const f = Math.floor(time * fps) % frames;
+  c.save();
+  if (flip) {
+    c.translate(x + w / 2, y + h / 2);
+    c.scale(-1, 1);
+    c.drawImage(img, f * fw, 0, fw, fh, -w / 2, -h / 2, w, h);
+  } else {
+    c.drawImage(img, f * fw, 0, fw, fh, x, y, w, h);
   }
   c.restore();
   return true;
@@ -1459,11 +1530,38 @@ function showHint() {
   hintTimer = setTimeout(function () { hintBox.classList.remove('show'); }, 6200);
 }
 
+/* ============================================================
+   МОДАЛЬНОЕ ПРЕДУПРЕЖДЕНИЕ
+   ============================================================ */
+let warnCallback = null;
+
+function showWarning(title, text, color, cb) {
+  warnCallback = cb || null;
+  const titleEl = document.getElementById('warnTitle');
+  titleEl.textContent = title;
+  titleEl.style.color = color || 'var(--c-accent)';
+  document.getElementById('warnText').textContent = text;
+  document.getElementById('warnOverlay').classList.add('show');
+  G.paused = true;
+}
+
+function closeWarning() {
+  document.getElementById('warnOverlay').classList.remove('show');
+  G.paused = false;
+  const cb = warnCallback;
+  warnCallback = null;
+  if (cb) cb();
+}
+
+document.getElementById('warnOk').addEventListener('click', closeWarning);
+
 /* Ачивки */
 function checkAchievements() {
+  const total = getTotalFragments();
   for (let i = 0; i < ACH_DEFS.length; i++) {
     const a = ACH_DEFS[i];
-    if (G.fragments >= a.min && G.achievements.indexOf(a.id) === -1) {
+    if (a.min !== undefined && total >= a.min &&
+        G.achievements.indexOf(a.id) === -1) {
       G.achievements.push(a.id);
       showAchievement(a);
     }
@@ -1478,9 +1576,26 @@ function showAchievement(a) {
   achTimer = setTimeout(function () { achEl.classList.remove('show'); }, 3000);
 }
 
-/** Добавить осколок(и) + проверить ачивки */
+/** Сумма осколков по всем уровням */
+function getTotalFragments() {
+  let sum = 0;
+  for (let i = 0; i < G.fragmentsByLevel.length; i++) {
+    sum += G.fragmentsByLevel[i];
+  }
+  return sum;
+}
+
+/** Добавить осколок(и) на текущем уровне + проверить ачивки */
 function addFragment(n) {
-  G.fragments += (n || 1);
+  const add = n || 1;
+  const idx = G.currentLevel - 1;
+  if (idx >= 0 && idx < G.fragmentsByLevel.length) {
+    if (G.fragmentsByLevel[idx] >= MAX_FRAGMENTS_PER_LEVEL) return;
+    G.fragmentsByLevel[idx] = Math.min(
+      MAX_FRAGMENTS_PER_LEVEL,
+      G.fragmentsByLevel[idx] + add
+    );
+  }
   checkAchievements();
 }
 
@@ -1758,6 +1873,7 @@ function goLevel(n, isRestart) {
       G.hearts = 3;               // ← сброс сердец
       G.lostThisPhase = false;    // ← новая фаза
       G.lostThisLevel = false;    // ← новый заход уровня
+      G.fragmentsByLevel[n - 1] = 0;    // ← обнуляем осколки этого уровня
       pauseOverlay.classList.remove('show');
       G.flash = 0;
       G.invuln = 0;
@@ -1822,33 +1938,29 @@ function drawHUD(c) {
       }
     }
   }
-} else {
-  // безопасная фаза — сердечек нет
-  c.fillStyle = 'rgba(115,240,247,.55)';
-  c.font = 'bold 15px Verdana';
-  c.textAlign = 'left';
-  c.textBaseline = 'middle';
-  c.fillText('☾ безопасный сон', 40, 34);
-  c.textBaseline = 'alphabetic';
 }
 
-  // — кристалл: спрайт или векторный резерв —
-  const hasFragImg = IMG['fragment'] && IMG['fragment'].complete &&
-                    IMG['fragment'].naturalWidth > 0;
+  // — счётчик осколков — только если уровень/фаза позволяет сбор —
+  const showFrags = !activeLevel.hasFragments || activeLevel.hasFragments();
 
-  if (hasFragImg) {
-    c.drawImage(IMG['fragment'], 196 - 14, 33 - 14, 28, 28);
-  } else {
-    c.fillStyle = '#7ff0ff';
-    drawGem(c, 196, 33, 13);
+  if (showFrags) {
+    const hasFragImg = IMG['fragment'] && IMG['fragment'].complete &&
+                      IMG['fragment'].naturalWidth > 0;
+
+    if (hasFragImg) {
+      c.drawImage(IMG['fragment'], 196 - 14, 33 - 14, 28, 28);
+    } else {
+      c.fillStyle = '#7ff0ff';
+      drawGem(c, 196, 33, 13);
+    }
+
+    c.fillStyle = '#d8ecff';
+    c.font = 'bold 20px Verdana';
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    c.fillText('× ' + getTotalFragments(), 216, 34);
+    c.textBaseline = 'alphabetic';
   }
-
-  c.fillStyle = '#d8ecff';
-  c.font = 'bold 20px Verdana';
-  c.textAlign = 'left';
-  c.textBaseline = 'middle';
-  c.fillText('× ' + G.fragments, 216, 34);
-  c.textBaseline = 'alphabetic';
 
   c.textAlign = 'right';
   c.fillStyle = '#ffd873';
@@ -1888,6 +2000,9 @@ function Level1() {
     done: false,
     allowsDamage: function () {
       return this.phase > 0;    // только фазы 2 и 3 (индекс 1 и 2)
+    },
+    hasFragments: function () {
+      return this.phase === 2;   // осколки только в фазе 3 (индекс 2)
     },
 
     restartFromCheckpoint: function () {
@@ -1953,10 +2068,29 @@ function Level1() {
       this.t = 0;
       this.hintT = 4;
       this.done = false;
-      this.transT = 1.8;
-      this.transText = 'ФАЗА 1: НА СТОЛЕ';
+      this.transT = 0;
+      this.transText = '';
       this.dragging = null;
       this.startSubLevel();
+
+      const self = this;
+      if (!G.seenWarn.phase1safe) {
+        G.seenWarn.phase1safe = true;
+        setTimeout(function () {
+          showWarning(
+            'ФАЗА 1: БЕЗ СЕРДЕЦ',
+            'Это сон без риска. Ты не можешь потерять сердца — ошибаться можно сколько угодно.\n\nНаслаждайся.',
+            '#7ff0ff',
+            function () {
+              self.transT = 1.0;
+              self.transText = 'ФАЗА 1: НА СТОЛЕ';
+            }
+          );
+        }, 300);
+      } else {
+        this.transT = 1.0;
+        this.transText = 'ФАЗА 1: НА СТОЛЕ';
+      }
     },
 
     startSubLevel: function () {
@@ -2314,6 +2448,26 @@ function Level1() {
           homeX: px, homeY: py
         });
       }
+      // осколки смелости — количество зависит от подуровня
+      // Итого за фазу: 1 + 2 + 2 = 5
+      this.formulaFrags = [];
+      const FRAG_LAYOUTS = [
+        // формула 1 (F = m a) — 1 осколок, по центру между слотами и элементами
+        [{ x: W / 2, y: 345 }],
+        // формула 2 (E = mc²) — 2 осколка по бокам
+        [{ x: 110, y: 345 }, { x: W - 110, y: 345 }],
+        // формула 3 (a² + b² = c²) — 2 осколка выше слотов, по бокам
+        [{ x: 100, y: 225 }, { x: W - 100, y: 225 }]
+      ];
+      const layout = FRAG_LAYOUTS[this.sub] || [];
+      for (let i = 0; i < layout.length; i++) {
+        this.formulaFrags.push({
+          x: layout[i].x,
+          y: layout[i].y,
+          taken: false,
+          phase: Math.random() * 6.28
+        });
+      }
     },
 
     /* ---------- ПРОГРЕСС ---------- */
@@ -2376,8 +2530,24 @@ skipPhase: function () {
             G.hearts = 3;
             G.lostThisPhase = false;
             self.startSubLevel();
-            self.transT = 1.0;
-            self.transText = 'ФАЗА 2: В ГОЛОВЕ';
+            self.transT = 0;
+            self.transText = '';
+
+            if (!G.seenWarn.phase2hearts) {
+              G.seenWarn.phase2hearts = true;
+              showWarning(
+                'ПОЯВИЛИСЬ СЕРДЦА',
+                'С этого момента ошибки стоят сердечка. Три ошибки в одной фазе — и она начнётся заново.\n\nБудь внимателен.',
+                '#ff4d6d',
+                function () {
+                  self.transT = 1.0;
+                  self.transText = 'ФАЗА 2: В ГОЛОВЕ';
+                }
+              );
+            } else {
+              self.transT = 1.0;
+              self.transText = 'ФАЗА 2: В ГОЛОВЕ';
+            }
           }, 1300);
         }
       } else if (this.phase === 1) {
@@ -2398,8 +2568,24 @@ skipPhase: function () {
             G.hearts = 3;
             G.lostThisPhase = false;
             self.startSubLevel();
-            self.transT = 1.0;
-            self.transText = 'ФАЗА 3: ФОРМУЛЫ';
+            self.transT = 0;
+            self.transText = '';
+
+            if (!G.seenWarn.phase3frags) {
+              G.seenWarn.phase3frags = true;
+              showWarning(
+                'ОСКОЛКИ СМЕЛОСТИ',
+                'На уровнях разбросаны голубые осколки. Собирай их — чем больше, тем сильнее удар по боссу в финале.\n\nНа каждом уровне не больше 5 штук. Перепрохождение сбрасывает счётчик уровня.',
+                '#ffcd75',
+                function () {
+                  self.transT = 1.0;
+                  self.transText = 'ФАЗА 3: ФОРМУЛЫ';
+                }
+              );
+            } else {
+              self.transT = 1.0;
+              self.transText = 'ФАЗА 3: ФОРМУЛЫ';
+            }
           }, 1300);
         }
       } else {
@@ -2440,6 +2626,14 @@ skipPhase: function () {
           l.vx *= 0.998;
           l.vy *= 0.998;
           if (l.flash > 0) l.flash -= dt;
+        }
+      }
+      // вспышки от собранных осколков (фаза 3)
+      if (this.formulaFragFx) {
+        for (let i = this.formulaFragFx.length - 1; i >= 0; i--) {
+          this.formulaFragFx[i].t -= dt;
+          this.formulaFragFx[i].y -= 40 * dt;
+          if (this.formulaFragFx[i].t <= 0) this.formulaFragFx.splice(i, 1);
         }
       }
     },
@@ -2506,7 +2700,26 @@ skipPhase: function () {
         }
       }
 
-      // ФАЗА 3 — взять элемент формулы
+      if (this.phase === 2) {
+        if (this.formulaFrags) {
+          for (let i = this.formulaFrags.length - 1; i >= 0; i--) {
+            const f = this.formulaFrags[i];
+            if (f.taken) continue;
+            const dx = f.x - x, dy = f.y - y;
+            if (dx * dx + dy * dy < 34 * 34) {
+              f.taken = true;
+              playSound('collect', 0.6);
+              addFragment();
+              // вспышка
+              this.formulaFragFx = this.formulaFragFx || [];
+              this.formulaFragFx.push({ x: f.x, y: f.y, t: 0.6 });
+              return;
+            }
+          }
+        }
+      }
+
+      // ФАЗА 3 — затем элементы формулы
       if (this.phase === 2) {
         for (let e of this.formulaElements) {
           if (e.placed) continue;
@@ -2891,7 +3104,34 @@ skipPhase: function () {
         c.restore();
         c.textBaseline = 'alphabetic';
       }
+      // осколки смелости — полупрозрачные, мигают
+      if (this.formulaFrags) {
+        for (let i = 0; i < this.formulaFrags.length; i++) {
+          const f = this.formulaFrags[i];
+          if (f.taken) continue;
+          const alpha = 0.18 + 0.22 * (0.5 + 0.5 * Math.sin(this.t * 1.6 + f.phase));
+          if (IMG['fragment']) {
+            c.globalAlpha = alpha;
+            c.drawImage(IMG['fragment'], f.x - 14, f.y - 14, 28, 28);
+            c.globalAlpha = 1;
+          } else {
+            drawFragment(c, f.x, f.y, this.t + f.phase, 11, alpha);
+          }
+        }
+      }
 
+      // вспышки
+      if (this.formulaFragFx) {
+        for (let i = 0; i < this.formulaFragFx.length; i++) {
+          const e = this.formulaFragFx[i];
+          c.globalAlpha = e.t / 0.6;
+          c.fillStyle = '#7ff0ff';
+          c.font = 'bold 22px Verdana';
+          c.textAlign = 'center';
+          c.fillText('+1', e.x, e.y);
+          c.globalAlpha = 1;
+        }
+      }
       if (this.hintT > 0) {
         drawBottomHint(c, 'Перетащи элементы в правильные ячейки',
                        this.hintT, '#c8a8ff');
@@ -2962,7 +3202,7 @@ skipPhase: function () {
       ],
   
       /* ===================== ФАЗА 2: ДОРОГА ===================== */
-      GROUND: 430, GRAV: 2300,
+      GROUND: 450, GRAV: 2300,
       dist: 0, target: 3600,
       jy: 0, vy: 0, onGround: true,
       obstacles: [], fragments: [],
@@ -3415,10 +3655,10 @@ skipPhase: function () {
   
       spawnObstacle: function (wx) {
         const types = [
-          { t: 'puddle', w: 110, h: 16 },
-          { t: 'pit',    w: 92,  h: 26 },
-          { t: 'light',  w: 44,  h: 96 },
-          { t: 'crowd',  w: 104, h: 62 }
+          { t: 'puddle', w: 48,  h: 60 },   // мусорка
+          { t: 'pit',    w: 92,  h: 26 },   // люк плоский
+          { t: 'light',  w: 44,  h: 96 },   // светофор
+          { t: 'crowd',  w: 104, h: 110 }   // толпа выше
         ];
         const o = types[Math.floor(Math.random() * types.length)];
         this.obstacles.push({ x: wx, w: o.w, h: o.h, t: o.t, wob: Math.random() * 6.28 });
@@ -3607,37 +3847,63 @@ skipPhase: function () {
         if (sx < -240 || sx > W + 240) continue;
         const gy = this.GROUND;
         if (o.t === 'puddle') {
-          if (IMG['puddle']) c.drawImage(IMG['puddle'], sx, gy - 26, o.w, 34);
-          else {
-            c.fillStyle = 'rgba(60,120,220,.75)';
-            c.beginPath(); c.ellipse(sx + o.w / 2, gy - 6, o.w / 2, 12, 0, 0, 7); c.fill();
-            c.fillStyle = 'rgba(160,215,255,.55)';
-            c.beginPath(); c.ellipse(sx + o.w / 2 - 12, gy - 10, 18, 5, 0, 0, 7); c.fill();
+          // МУСОРКА — с сохранением пропорций (не растянется!)
+          const p = IMG['puddle'];
+          if (p && p.complete && p.naturalWidth > 0) {
+            const natW = p.naturalWidth;
+            const natH = p.naturalHeight;
+            // вписываем картинку в прямоугольник o.w × o.h, сохраняя пропорции
+            const scale = Math.min(o.w / natW, o.h / natH);
+            const dw = natW * scale;
+            const dh = natH * scale;
+            const dx = sx + (o.w - dw) / 2;   // центрируем
+            c.drawImage(p, dx, gy - dh, dw, dh);
+          } else {
+            // заглушка, если картинки нет
+            c.fillStyle = '#3a5a3a';
+            rr(c, sx + 6, gy - o.h, o.w - 12, o.h, 6); c.fill();
+            c.strokeStyle = '#1a2a1a'; c.lineWidth = 3;
+            rr(c, sx + 6, gy - o.h, o.w - 12, o.h, 6); c.stroke();
           }
         } else if (o.t === 'pit') {
-          c.fillStyle = '#05070f';
-          c.beginPath(); c.ellipse(sx + o.w / 2, gy + 6, o.w / 2, 16, 0, 0, 7); c.fill();
-          c.strokeStyle = '#2a3a72'; c.lineWidth = 3;
-          c.beginPath();
-          c.ellipse(sx + o.w / 2, gy + 6, o.w / 2, 16, 0, Math.PI, Math.PI * 2);
-          c.stroke();
+          // ЛЮК
+          if (IMG['plt']) {
+            c.drawImage(IMG['plt'], sx - 6, gy - 14, o.w + 12, 38);
+          } else {
+            c.fillStyle = '#05070f';
+            c.beginPath(); c.ellipse(sx + o.w / 2, gy + 6, o.w / 2, 16, 0, 0, 7); c.fill();
+            c.strokeStyle = '#2a3a72'; c.lineWidth = 3;
+            c.beginPath();
+            c.ellipse(sx + o.w / 2, gy + 6, o.w / 2, 16, 0, Math.PI, Math.PI * 2);
+            c.stroke();
+          }
         } else if (o.t === 'light') {
-          c.fillStyle = '#2b3350';
-          c.fillRect(sx + o.w / 2 - 5, gy - o.h, 10, o.h);
-          c.fillStyle = '#1b2138';
-          rr(c, sx + o.w / 2 - 16, gy - o.h - 4, 32, 78, 8); c.fill();
-          c.fillStyle = '#ff3b57'; c.beginPath(); c.arc(sx + o.w / 2, gy - o.h + 16, 9, 0, 7); c.fill();
-          c.fillStyle = '#ffd23b'; c.beginPath(); c.arc(sx + o.w / 2, gy - o.h + 38, 9, 0, 7); c.fill();
-          c.fillStyle = '#3bff8f'; c.beginPath(); c.arc(sx + o.w / 2, gy - o.h + 60, 9, 0, 7); c.fill();
+          // СВЕТОФОР
+          if (IMG['traffic_light']) {
+            c.drawImage(IMG['traffic_light'], sx + o.w / 2 - 26, gy - o.h - 20, 52, o.h + 20);
+          } else {
+            c.fillStyle = '#2b3350';
+            c.fillRect(sx + o.w / 2 - 5, gy - o.h, 10, o.h);
+            c.fillStyle = '#1b2138';
+            rr(c, sx + o.w / 2 - 16, gy - o.h - 4, 32, 78, 8); c.fill();
+            c.fillStyle = '#ff3b57'; c.beginPath(); c.arc(sx + o.w / 2, gy - o.h + 16, 9, 0, 7); c.fill();
+            c.fillStyle = '#ffd23b'; c.beginPath(); c.arc(sx + o.w / 2, gy - o.h + 38, 9, 0, 7); c.fill();
+            c.fillStyle = '#3bff8f'; c.beginPath(); c.arc(sx + o.w / 2, gy - o.h + 60, 9, 0, 7); c.fill();
+          }
         } else {
-          const n = 4;
-          for (let k = 0; k < n; k++) {
-            const px = sx + 10 + k * (o.w - 20) / (n - 1);
-            const bob = Math.sin(this.t * 4 + k + o.wob) * 3;
-            c.fillStyle = '#3a4470';
-            c.beginPath(); c.arc(px, gy - 46 + bob, 11, 0, 7); c.fill();
-            c.fillStyle = '#2b3358';
-            rr(c, px - 11, gy - 36 + bob, 22, 36, 8); c.fill();
+          // ТОЛПА
+          if (IMG['crowd']) {
+            c.drawImage(IMG['crowd'], sx, gy - o.h, o.w, o.h);
+          } else {
+            const n = 4;
+            for (let k = 0; k < n; k++) {
+              const px = sx + 10 + k * (o.w - 20) / (n - 1);
+              const bob = Math.sin(this.t * 4 + k + o.wob) * 3;
+              c.fillStyle = '#3a4470';
+              c.beginPath(); c.arc(px, gy - 46 + bob, 11, 0, 7); c.fill();
+              c.fillStyle = '#2b3358';
+              rr(c, px - 11, gy - 36 + bob, 22, 36, 8); c.fill();
+            }
           }
         }
       }
@@ -3674,9 +3940,13 @@ skipPhase: function () {
       const catY = this.GROUND - this.jy;
       const blink = (G.invuln > 0 && Math.floor(G.invuln * 12) % 2 === 0);
       if (!blink) {
-        let imgName = this.onGround ? 'cat_run' : 'cat_jump';
+        let imgName = this.onGround ? 'cat_run_sheet' : 'cat_jump';
         if (this.done) imgName = 'cat_happy';
-        if (IMG[imgName]) c.drawImage(IMG[imgName], 200 - 45, catY - 90, 90, 90);
+        if (imgName === 'cat_run_sheet' && IMG['cat_run_sheet']) {
+          drawAnimated(c, IMG['cat_run_sheet'], 200 - 45, catY - 90, 90, 90, false, this.t, 10, 3);
+        } else if (IMG[imgName]) {
+          c.drawImage(IMG[imgName], 200 - 45, catY - 90, 90, 90);
+        }
         else drawCat(c, 200, catY, 0.82, { t: this.t, run: this.onGround ? 1 : 0, flip: false });
       }
       c.restore();
@@ -4006,8 +4276,8 @@ function Level4() {
 
     hitBoss: function () {
       let dmg = 1, label = '';
-      if (G.fragments >= 10)      { dmg = 3; label = 'СОКРУШИТЕЛЬНЫЙ УДАР!'; }
-      else if (G.fragments >= 5)  { dmg = 2; label = 'СИЛЬНЫЙ УДАР!'; }
+      if (getTotalFragments() >= 10)      { dmg = 3; label = 'СОКРУШИТЕЛЬНЫЙ УДАР!'; }
+      else if (getTotalFragments() >= 5)  { dmg = 2; label = 'СИЛЬНЫЙ УДАР!'; }
       else                        { dmg = 1; label = 'Удар!'; }
 
       this.bossHP -= dmg;
@@ -4347,11 +4617,11 @@ function Level4() {
 
       // --- бонус урона ---
       let dmgBonus = 'Урон: 1';
-      if (G.fragments >= 10) dmgBonus = 'Урон: 3 (всё сокрушит!)';
-      else if (G.fragments >= 5) dmgBonus = 'Урон: 2 (мощно!)';
+      if (getTotalFragments() >= 10) dmgBonus = 'Урон: 3 (всё сокрушит!)';
+      else if (getTotalFragments() >= 5) dmgBonus = 'Урон: 2 (мощно!)';
       c.fillStyle = '#ffd873';
       c.font = 'bold 14px Verdana';
-      c.fillText('◆ Осколков: ' + G.fragments + '  —  ' + dmgBonus, W / 2, 154);
+      c.fillText('◆ Осколков: ' + getTotalFragments() + '  —  ' + dmgBonus, W / 2, 154);
 
       // --- частицы ---
       for (let i = 0; i < this.particles.length; i++) {
@@ -4381,7 +4651,7 @@ function Level4() {
         if (!this.onGround) name = 'cat_jump';
         else if (G.keys['ArrowLeft'] || G.keys['ArrowRight'] ||
                 G.keys['KeyA'] || G.keys['KeyD'] || this.targetX !== null) {
-          name = 'cat_run';
+          name = 'cat_run_sheet';
         }
 
         const flip = this.catFacing < 0;
@@ -4533,7 +4803,7 @@ let endTime = 0;
 function prepareEnd() {
   endTime = 0;
   document.getElementById('endStat').textContent =
-    'Осколков смелости собрано: ' + G.fragments +
+    'Осколков смелости собрано: ' + getTotalFragments() +
     '   •   Достижений: ' + G.achievements.length + ' / ' + ACH_DEFS.length;
   playSound('alarm', 0.6);
 }
@@ -4695,7 +4965,17 @@ function updateMap()
     else if (done) stateDiv.textContent = '✓ пройден';
     else if (locked) stateDiv.textContent = '🔒 закрыт';
     else stateDiv.textContent = '► доступен';
-
+    const fragDiv = document.createElement('div');
+    fragDiv.className = 'lvl-frag';
+    const lvlFrag = G.fragmentsByLevel[n - 1];
+    fragDiv.textContent = '◆ ' + lvlFrag + ' / ' + MAX_FRAGMENTS_PER_LEVEL;
+    if (lvlFrag >= MAX_FRAGMENTS_PER_LEVEL) {
+      fragDiv.style.color = '#ffcd75';
+    } else if (lvlFrag > 0) {
+      fragDiv.style.color = '#7ff0ff';
+    } else {
+      fragDiv.style.color = 'rgba(255,255,255,0.35)';
+    }
     // метка сердец для этого уровня
     const heartsDiv = document.createElement('div');
     heartsDiv.className = 'lvl-hearts';
@@ -4715,6 +4995,7 @@ function updateMap()
     el.appendChild(subDiv);
     el.appendChild(stateDiv);
     el.appendChild(heartsDiv);
+    el.appendChild(fragDiv);
 
     if (!locked) {
       el.addEventListener('click', function () {
@@ -4730,7 +5011,7 @@ function updateMap()
   for (let i = 1; i <= 4; i++) if (G.levelPerfect['l' + i]) perfectCount++;
 
   document.getElementById('mapHearts').textContent = '★ ' + perfectCount + ' / 4';
-  document.getElementById('mapFrag').textContent = '◈ осколков: ' + G.fragments;
+  document.getElementById('mapFrag').textContent = '◈ осколков: ' + getTotalFragments();
   document.getElementById('mapAch').textContent = '★ ' + G.achievements.length + ' / ' + ACH_DEFS.length;
 }
 
@@ -4759,7 +5040,7 @@ btnStart.addEventListener('click', function () {
 
 btnRestart.addEventListener('click', function () {
   G.hearts = 3;
-  G.fragments = 0;
+  getTotalFragments() = 0;
   G.currentLevel = 1;
   G.maxUnlocked = 1;
   G.completed = [false, false, false, false];
