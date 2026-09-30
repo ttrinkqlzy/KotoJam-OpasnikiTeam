@@ -793,7 +793,15 @@ const DEBUG = true;
    ============================================================ */
 
 const W = 960, H = 540;
-const MAX_FRAGMENTS_PER_LEVEL = 5;
+
+// Лимит осколков ДЛЯ КАЖДОГО УРОВНЯ отдельно.
+// Порядок: [уровень 1, уровень 2, уровень 3, уровень 4]
+const MAX_FRAGMENTS_BY_LEVEL = [5, 5, 10, 5];
+
+function maxFragsFor(level) {
+  const v = MAX_FRAGMENTS_BY_LEVEL[level - 1];
+  return (v === undefined) ? 5 : v;
+}
 
 const G = {
   mode: 'loading',
@@ -818,10 +826,10 @@ const G = {
 };
 
 const LEVEL_META = [
-  { name: 'Конспект', sub: 'страх забыть всё' },
-  { name: 'Автобус',  sub: 'страх опоздать' },
-  { name: 'Пин-код',  sub: 'страх не найти выход' },
-  { name: 'Зачётка',  sub: 'страх провала' }
+  { name: 'Конспект', sub: 'сон о забытом' },
+  { name: 'Автобус',  sub: 'сон об опоздании' },
+  { name: 'Пропуск',  sub: 'сон о потерянном' },
+  { name: 'Зачётка',  sub: 'сон о провале' }
 ];
 
 const STORY = {
@@ -863,12 +871,12 @@ const STORY = {
   ]},
 
   level3: { slides: [
-    { label: 'Аудитория. Дверь заперта.\nНа двери — кодовый замок.',
-      text: 'Сон третий: «Дверь».\n\nЭкзамен начинается. Но дверь заперта.' },
-    { label: 'Три цифры. Три загадки.\nПальцы кота дрожат.',
-      text: 'Кодовый замок. Три цифры. Три загадки.' },
-    { label: 'Кот закрывает глаза,\nвспоминает.',
-      text: '«Я знаю ответ. Я учил. Я помню.»\n\nГолова пустая. Но где-то в глубине — есть ответ.' }
+    { label: 'Главный корпус. Турникет.\nКот хлопает по карманам.\nПропуска нет.',
+      text: 'Кот вбегает в главный корпус. Турникет. Очередь. Экзамен уже начался.\n\nПропуска нет. Ни студенческого, ни паспорта.' },
+    { label: 'Охранник строго смотрит\nповерх очков.',
+      text: '«Забыл пропуск? Знаем мы таких.\n\nОтветишь на три вопроса про ТюмГУ — пропущу. Не ответишь — извини.»' },
+    { label: 'Кот глубоко вздыхает.\nТри вопроса. Три сердца.',
+      text: 'Кот глубоко вздыхает. Три вопроса.\n\nНа размышление — секунды.' }
   ]},
 
   level4: { slides: [
@@ -891,8 +899,10 @@ const STORY = {
   ]},
 
   after3: { slides: [
-    { label: 'Кот входит в аудиторию.\nТьма сгущается.',
-      text: 'Дверь открылась. Кот вошёл.\n\nИ понял — это не аудитория. Это место, где живёт его самый большой страх.' }
+    { label: 'Кот входит в аудиторию 305.\nПарты. Доска. Студенты.',
+      text: 'Кот входит в аудиторию.\n\nОхранник пропустил. Лабиринт отпустил. Дверь поддалась.' },
+    { label: 'Кот садится за парту.\nСмотрит на билет.',
+      text: 'Он садится. Достаёт ручку.\n\nЭкзамен начинается.' }
   ]},
 
   after4: { slides: [
@@ -1591,9 +1601,10 @@ function addFragment(n) {
   const add = n || 1;
   const idx = G.currentLevel - 1;
   if (idx >= 0 && idx < G.fragmentsByLevel.length) {
-    if (G.fragmentsByLevel[idx] >= MAX_FRAGMENTS_PER_LEVEL) return;
+    const cap = maxFragsFor(G.currentLevel);
+    if (G.fragmentsByLevel[idx] >= cap) return;
     G.fragmentsByLevel[idx] = Math.min(
-      MAX_FRAGMENTS_PER_LEVEL,
+      cap,
       G.fragmentsByLevel[idx] + add
     );
   }
@@ -4004,226 +4015,754 @@ const RIDDLES = [
     a: 'лампа', opts: ['лампа', 'яблоко', 'гиря'], digit: '1' }
 ];
 
+/* ============================================================
+   12. УРОВЕНЬ 3 — «ПРОПУСК»
+   Фаза 1: вопросы охранника
+   Фаза 2: лабиринт главного корпуса
+   Фаза 3: заглушка
+   ============================================================ */
+// Сколько вопросов считается "активными". Первые N — боевые,
+const LEVEL3_ACTIVE_COUNT = 10;
+// Банк вопросов
+const LEVEL3_QUESTIONS = [
+  // ====== 1. Год основания (подтверждено: 1930) ======
+  { q: 'В каком году основан ТюмГУ?',
+    opts: ['1930', '1918', '1945', '1960'],
+    correct: 0 },
+
+  // ====== 2. Старое название ШКН (подтверждено: ИМИКН) ======
+  { q: 'Как раньше называлась ШКН?',
+    opts: ['ИМИКН', 'ИМКН', 'ФИТ', 'ИИТ'],
+    correct: 0 },
+
+  // ====== 3. Адрес главного корпуса (подтверждено: Володарского, 6) ======
+  { q: 'Где находится главный корпус ТюмГУ?',
+    opts: ['ул. Володарского, 6', 'ул. Ленина, 1', 'ул. Мира, 10', 'ул. Республики, 5'],
+    correct: 0 },
+
+  // ====== 4. Цвет бренда (подтверждено: синий) ======
+  { q: 'Какой цвет у бренда ТюмГУ?',
+    opts: ['Синий', 'Красный', 'Зелёный', 'Жёлтый'],
+    correct: 0 },
+
+  // ====== 5. Что такое Котоджем (подтверждено: конкурс) ======
+  { q: 'Что такое «Котоджем»?',
+    opts: ['Конкурс разработчиков игр', 'Фестиваль музыки', 'Спортивный турнир', 'Научная конференция'],
+    correct: 0 },
+
+  // ====== 6. Сколько лет университету (подтверждено: 95 в 2025) ======
+  { q: 'Сколько лет ТюмГУ в 2026 году?',
+    opts: ['96', '80', '85', '100'],
+    correct: 0 },
+
+  // ====== 7. Ректор (подтверждено: Романчук) ======
+  { q: 'Кто является ректором ТюмГУ?',
+    opts: ['Романчук', 'Иванов', 'Петров', 'Смирнов'],
+    correct: 0 },
+
+  // ====== 8. ЗАГЛУШКА — впиши вопрос сам(а) ======
+  { q: 'Вопрос8?',
+    opts: ['Верный', 'Неверный1', 'Неверный2', 'Неверный3'],
+    correct: 0 },
+
+  // ====== 9. ЗАГЛУШКА ======
+  { q: 'Вопрос9?',
+    opts: ['Верный', 'Неверный1', 'Неверный2', 'Неверный3'],
+    correct: 0 },
+
+  // ====== 10. ЗАГЛУШКА ======
+  { q: 'Вопрос10?',
+    opts: ['Верный', 'Неверный1', 'Неверный2', 'Неверный3'],
+    correct: 0 }
+];
+
+/* ============================================================
+   12. УРОВЕНЬ 3 — «ПРОПУСК»
+   Фаза 1: вопросы охранника
+   Фаза 2: 3 этажа главного корпуса
+   ============================================================ */
+
+const LEVEL3_FLOORS = [
+  /* ============ ЭТАЖ 1 (8×8, маленький) ============ */
+  {
+    name: '1 ЭТАЖ',
+    exitLabel: '↑',
+    maze: [
+      '1SC11000',
+      '1000C010',
+      '10101F10',
+      'F0101110',
+      '1C100000',
+      'E0111101',
+      '1010000C',
+      'C00011C1'
+    ],
+    exitRow: 6, exitCol: 5,
+    frags: [ {r:3,c:1}, {r:4,c:4} ]
+  },
+
+  /* ============ ЭТАЖ 2 (9×15, средний) ============
+     9 строк × 15 столбцов. Было 9×9, добавили по 3 клетки
+     слева и справа. Клетки остаются 40×40 (квадратные),
+     OX считается автоматически.                                     */
+  {
+    name: '2 ЭТАЖ',
+    exitLabel: '↑',
+    maze: [
+      '111111111111111',
+      '111111111111111',
+      '111111111111111',
+      '111111111111111',
+      '111111111111111',
+      '111111111111111',
+      '111111111111111',
+      '111111111111111',
+      'SE1111111111111'
+    ],
+    exitRow: 7, exitCol: 5,
+    frags: []
+  },
+
+  /* ============ ЭТАЖ 3 (10×18, большой) ============
+     10 строк × 18 столбцов. Было 10×10, добавили по 4 клетки
+     слева и справа. Клетки остаются 40×40 (квадратные).           */
+  {
+    name: '3 ЭТАЖ',
+    exitLabel: '305',
+    maze: [
+      '1111111111111111SE',
+      '111111111111111111',
+      '111111111111111111',
+      '111111111111111111',
+      '111111111111111111',
+      '111111111111111111',
+      '111111111111111111',
+      '111111111111111111',
+      '111111111111111111',
+      '111111111111111111'
+    ],
+    exitRow: 7, exitCol: 6,
+    frags: []
+  }
+];
+
 function Level3() {
   return {
-    name: 'Пин-код', subtitle: 'страх не найти выход',
-    idx: 0, digits: ['?', '?', '?'],
-    solved: [false, false, false],
-    hiddenFrags: [],
-    msg: '', msgT: 0, msgCol: '#8fd0ff',
-    t: 0, done: false, doorOpen: 0,
-    hintT: 4,
+    name: 'Пропуск', subtitle: 'страх не найти выход',
 
+    phase: 0,   // 0=вопросы, 1=лабиринты
+    t: 0,
+    hintT: 4,
+    transT: 0,
+    transText: '',
+    done: false,
+
+    /* ---------- ФАЗА 1: ВОПРОСЫ ---------- */
+    activeQuestions: [],
+    currentQ: 0,
+    msg: '', msgT: 0, msgCol: '#8fd0ff',
+    chosenAnswer: -1,
+    answerFlash: 0,
+    answerIsCorrect: false,
+
+    /* ---------- ФАЗА 2: ЛАБИРИНТЫ ---------- */
+    COL: 8, ROW: 8,
+    CW: 40, CH: 40,
+    OX: 320, OY: 80,
+
+    curFloor: 0,
+    maze: [],
+    exitRow: 7, exitCol: 5,
+    exitLabel: '↑',
+
+    catRow: 1, catCol: 1,
+    catDrawX: 1, catDrawY: 1,
+    moveCooldown: 0,
+    catFacing: 1,
+    mazeFrags: [],
+    mazeWin: 0,
+    floorTransitionT: 0,
+
+    /* ---------- ИНИЦИАЛИЗАЦИЯ ---------- */
     init: function () {
-      this.idx = 0;
-      this.digits = ['?', '?', '?'];
-      this.solved = [false, false, false];
-      this.msg = ''; this.msgT = 0;
-      this.t = 0; this.done = false; this.doorOpen = 0;
+      this.phase = 0;
+      this.t = 0;
+      this.done = false;
+      this.transT = 0;
+      this.transText = '';
       this.hintT = 4;
 
-      // генерируем 5 спрятанных осколков в "безопасных" зонах
-      const base = [
-        { x: 110, y: 150 },
-        { x: 850, y: 150 },
-        { x: 80,  y: 350 },
-        { x: 880, y: 350 },
-        { x: 250, y: 470 }
-      ];
-      this.hiddenFrags = [];
-      for (let i = 0; i < base.length; i++) {
-        this.hiddenFrags.push({
-          x: base[i].x + (Math.random() * 40 - 20),
-          y: base[i].y + (Math.random() * 40 - 20),
-          found: false,
+      const available = LEVEL3_QUESTIONS.slice(0, LEVEL3_ACTIVE_COUNT);
+      // Fisher-Yates
+      for (let i = available.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = available[i];
+        available[i] = available[j];
+        available[j] = tmp;
+      }
+      this.activeQuestions = available.slice(0, 3);
+      this.currentQ = 0;
+      this.msg = '';
+      this.msgT = 0;
+      this.chosenAnswer = -1;
+
+      // лабиринты уже загружены в LEVEL3_FLOORS
+      this.curFloor = 0;
+    },
+
+    allowsDamage: function () { return this.phase === 0; },
+    hasFragments: function () { return this.phase === 1; },
+
+    progress: function () {
+      if (this.phase === 0) return (this.currentQ / 3) * 0.4;
+      // лабиринт: 0.4 + доля пройденных этажей + осколки
+      let got = 0;
+      for (let i = 0; i < this.mazeFrags.length; i++) {
+        if (this.mazeFrags[i].taken) got++;
+      }
+      const floorProgress = this.curFloor / 3;
+      const fragProgress = got / 5;
+      return Math.min(1, 0.4 + floorProgress * 0.4 + fragProgress * 0.2);
+    },
+
+    restartFromCheckpoint: function () {
+      if (this.phase === 0) {
+        this.init();
+      } else if (this.phase === 1) {
+        this.loadFloor(this.curFloor);
+      }
+    },
+
+    skipPhase: function () {
+      if (this.transT > 0 || this.done) return;
+      const self = this;
+      if (this.phase === 0) {
+        this.currentQ = 3;
+        this.transT = 1.2;
+        this.transText = 'SKIP → ЛАБИРИНТ';
+        setTimeout(function () {
+          self.loadFloor(0);
+          self.phase = 1;
+          self.transT = 0.8;
+          self.transText = 'ФАЗА 2: ЛАБИРИНТ';
+        }, 900);
+      } else {
+        levelComplete();
+      }
+    },
+
+    /* ============================================================
+       ФАЗА 1: ВОПРОСЫ
+       ============================================================ */
+    btnRect: function (i) {
+      const w = 600, h = 45;
+      return { x: (W - w) / 2, y: 265 + i * 55, w: w, h: h };
+    },
+
+    answer: function (idx) {
+      if (this.phase !== 0) return;
+      if (this.chosenAnswer >= 0) return;
+      const q = this.activeQuestions[this.currentQ];
+      if (!q) return;
+
+      this.chosenAnswer = idx;
+      this.answerFlash = 0.5;
+      this.answerIsCorrect = (idx === q.correct);
+
+      if (this.answerIsCorrect) {
+        playSound('collect', 0.6);
+        this.msg = 'Верно!';
+        this.msgCol = '#4fe0a0';
+        this.msgT = 1.2;
+      } else {
+        playSound('hurt', 0.6);
+        this.msg = 'Не то. Охранник хмурится...';
+        this.msgCol = '#ff6b8a';
+        this.msgT = 1.5;
+        damage();
+      }
+    },
+
+    nextQuestion: function () {
+      this.currentQ++;
+      this.chosenAnswer = -1;
+      this.answerFlash = 0;
+      if (this.currentQ >= 3) {
+        const self = this;
+        this.transT = 1.5;
+        this.transText = 'ОХРАННИК КИВАЕТ...';
+        setTimeout(function () {
+          self.phase = 1;
+          self.loadFloor(0);
+          self.transT = 0.9;
+          self.transText = 'ФАЗА 2: 1 ЭТАЖ';
+        }, 1300);
+      }
+    },
+
+    /* ============================================================
+       ФАЗА 2: ЛАБИРИНТ
+       ============================================================ */
+    loadFloor: function (n) {
+      this.curFloor = n;
+      const f = LEVEL3_FLOORS[n];
+      this.maze = f.maze;
+      this.ROW = f.maze.length;
+      this.COL = f.maze[0].length;
+
+      // клетки квадратные — 40×40
+      this.CW = 40;
+      this.CH = 40;
+
+      // центрируем лабиринт и по горизонтали, и по вертикали
+      this.OX = Math.floor((W - this.COL * this.CW) / 2);
+      const mazeH = this.ROW * this.CH;
+      const topSafe = 96;             // под плашкой «ЭТАЖ X / 3»
+      const bottomSafe = H - 80;      // небольшой отступ снизу
+      this.OY = Math.floor(topSafe + (bottomSafe - topSafe - mazeH) / 2);
+      if (this.OY < topSafe) this.OY = topSafe;   // если не влезает — прижимаем к верху
+
+      // ===== АВТО-ПОИСК S, E, F ПРЯМО В ЛАБИРИНТЕ =====
+      let startR = 1, startC = 1;
+      let exitR = f.exitRow, exitC = f.exitCol;
+      let foundS = false, foundE = false;
+      const autoFrags = [];
+
+      for (let r = 0; r < this.ROW; r++) {
+        for (let c = 0; c < this.COL; c++) {
+          const ch = this.maze[r][c];
+          if (ch === 'S' && !foundS) { startR = r; startC = c; foundS = true; }
+          else if (ch === 'E' && !foundE) { exitR = r; exitC = c; foundE = true; }
+          else if (ch === 'F') { autoFrags.push({ r: r, c: c }); }
+        }
+      }
+
+      this.exitRow = exitR;
+      this.exitCol = exitC;
+      this.exitLabel = f.exitLabel;
+
+      this.catRow = startR;
+      this.catCol = startC;
+      this.catDrawX = startC;
+      this.catDrawY = startR;
+      this.catFacing = 1;
+      this.moveCooldown = 0;
+      this.mazeWin = 0;
+      this.hintT = 4;
+
+      // Осколки: если в maze есть 'F' — берём их. Иначе — старый список frags.
+      const fragSource = autoFrags.length > 0 ? autoFrags : f.frags;
+      this.mazeFrags = [];
+      for (let i = 0; i < fragSource.length; i++) {
+        this.mazeFrags.push({
+          r: fragSource[i].r,
+          c: fragSource[i].c,
+          taken: false,
           phase: Math.random() * 6.28
         });
       }
     },
 
-    progress: function () {
-      let s = 0;
-      for (let i = 0; i < 3; i++) if (this.solved[i]) s++;
-      return s / 3;
-    },
-    jump: function () {},
-
-    btnRect: function (i) {
-      const w = 300, h = 66;
-      return { x: (W - w) / 2, y: 288 + i * 82, w: w, h: h };
+    isWall: function (row, col) {
+      if (row < 0 || row >= this.ROW) return true;
+      if (col < 0 || col >= this.COL) return true;
+      const ch = this.maze[row][col];
+      return ch === '1' || ch === 'C';
     },
 
-    onPointerDown: function (x, y) {
-      // сперва проверяем спрятанные осколки (клик по фону)
-      for (let i = 0; i < this.hiddenFrags.length; i++) {
-        const f = this.hiddenFrags[i];
-        if (f.found) continue;
-        const dx = f.x - x, dy = f.y - y;
-        if (dx * dx + dy * dy < 38 * 38) {
-          f.found = true;
-          playSound('collect', 0.6);
-          addFragment();
-          this.msg = 'Найден спрятанный осколок!';
-          this.msgCol = '#7ff0ff';
-          this.msgT = 2.0;
-          return;
-        }
-      }
-      // далее — кнопки ответов
-      if (this.done || this.idx >= 3) return;
-      for (let i = 0; i < 3; i++) {
-        const b = this.btnRect(i);
-        if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
-          this.answer(RIDDLES[this.idx].opts[i]);
-          return;
-        }
+    /* Проверка: вышли ли мы на следующий этаж / в 305 */
+    checkExit: function () {
+      if (this.mazeWin > 0) return;
+      if (this.catRow === this.exitRow && this.catCol === this.exitCol) {
+        playSound('win', 0.7);
+        this.mazeWin = 0.01;
       }
     },
 
-    answer: function (opt) {
-      const r = RIDDLES[this.idx];
-      if (!r) return;
-      if (opt === r.a) {
-        this.solved[this.idx] = true;
-        this.digits[this.idx] = r.digit;
-        playSound('collect', 0.6);
-        this.msg = 'Верно! Цифра кода: ' + r.digit;
-        this.msgCol = '#4fe0a0';
-        this.msgT = 2.2;
-        this.idx++;
-        if (this.idx >= 3) {
-          this.done = true;
-          setTimeout(function () { levelComplete(); }, 1600);
-        }
+    completeFloor: function () {
+      if (this.curFloor < 2) {
+        // переход на следующий этаж
+        const self = this;
+        this.curFloor++;
+        this.transT = 1.5;
+        this.transText = 'ПОДЪЁМ НА ' + (this.curFloor + 1) + ' ЭТАЖ...';
+        setTimeout(function () {
+          self.loadFloor(self.curFloor);
+          self.transT = 0.9;
+          self.transText = 'ФАЗА 2: ' + (self.curFloor + 1) + ' ЭТАЖ';
+        }, 1300);
       } else {
-        playSound('hurt', 0.6);
-        this.msg = 'Не то... Попробуй ещё раз.';
-        this.msgCol = '#ff6b8a';
-        this.msgT = 2.2;
-        damage();
+        // 3 этаж пройден — уровень завершён
+        this.done = true;
+        const self = this;
+        setTimeout(function () { levelComplete(); }, 600);
       }
     },
-    skipPhase: function () {
-      if (this.done) return;
-      this.solved = [true, true, true];
-      this.digits = RIDDLES.map(function (r) { return r.digit; });
-      this.idx = 3;
-      this.done = true;
-      this.doorOpen = 1;
-      const self = this;
-      setTimeout(function () { levelComplete(); }, 300);
-    }, 
+
+    /* ============================================================
+       UPDATE
+       ============================================================ */
     update: function (dt) {
       this.t += dt;
-      if (this.msgT > 0) this.msgT -= dt;
       if (this.hintT > 0) this.hintT -= dt;
+      if (this.transT > 0) this.transT -= dt;
+      if (this.msgT > 0) this.msgT -= dt;
+      if (this.answerFlash > 0) this.answerFlash -= dt;
       if (G.invuln > 0) G.invuln -= dt;
-      if (this.done) this.doorOpen = Math.min(1, this.doorOpen + dt * 0.9);
+
+      // вопросы
+      if (this.phase === 0 && this.chosenAnswer >= 0 && this.answerFlash <= 0) {
+        if (this.answerIsCorrect) this.nextQuestion();
+        else this.chosenAnswer = -1;
+      }
+
+      // лабиринт
+      if (this.phase === 1) this.updateMaze(dt);
     },
 
+    updateMaze: function (dt) {
+      // плавное движение рисовки кота
+      this.catDrawX += (this.catCol - this.catDrawX) * Math.min(1, dt * 14);
+      this.catDrawY += (this.catRow - this.catDrawY) * Math.min(1, dt * 14);
+
+      if (this.mazeWin > 0) {
+        this.mazeWin += dt * 1.5;
+        if (this.mazeWin >= 1.6) {
+          this.mazeWin = 0;
+          this.completeFloor();
+        }
+        return;
+      }
+
+      if (this.transT > 0) return;
+
+      this.moveCooldown -= dt;
+      if (this.moveCooldown > 0) return;
+
+      let dr = 0, dc = 0;
+      if (G.keys['ArrowUp'] || G.keys['KeyW']) dr = -1;
+      else if (G.keys['ArrowDown'] || G.keys['KeyS']) dr = 1;
+      else if (G.keys['ArrowLeft'] || G.keys['KeyA']) dc = -1;
+      else if (G.keys['ArrowRight'] || G.keys['KeyD']) dc = 1;
+
+      if (dr === 0 && dc === 0) return;
+
+      if (dc < 0) this.catFacing = -1;
+      if (dc > 0) this.catFacing = 1;
+
+      const nr = this.catRow + dr;
+      const nc = this.catCol + dc;
+      if (this.isWall(nr, nc)) return;
+
+      this.catRow = nr;
+      this.catCol = nc;
+      this.moveCooldown = 0.14;
+
+      // осколки
+      for (let i = 0; i < this.mazeFrags.length; i++) {
+        const f = this.mazeFrags[i];
+        if (!f.taken && f.r === this.catRow && f.c === this.catCol) {
+          f.taken = true;
+          playSound('collect', 0.6);
+          addFragment();
+        }
+      }
+
+      this.checkExit();
+    },
+
+    /* ============================================================
+       ВВОД
+       ============================================================ */
+    jump: function () {},
+
+    onPointerDown: function (x, y) {
+      if (this.phase === 0) {
+        if (this.chosenAnswer >= 0) return;
+        for (let i = 0; i < 4; i++) {
+          const b = this.btnRect(i);
+          if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+            this.answer(i);
+            return;
+          }
+        }
+      }
+    },
+
+    onPointerMove: function (x, y) {},
+    onPointerUp: function (x, y) {},
+
+    /* ============================================================
+       DRAW
+       ============================================================ */
     draw: function (c) {
-      drawBackground(c, 'bg_door', '#0a0f22', '#050810');
-      c.fillStyle = 'rgba(20,30,65,.35)';
+      if (this.phase === 0) this.drawQuestions(c);
+      else this.drawMaze(c);
+
+      if (this.transT > 0) this.drawTransition(c);
+      drawHUD(c);
+    },
+
+    /* ---------- ВОПРОСЫ ---------- */
+    drawQuestions: function (c) {
+      drawBackground(c, 'bg_corridor', '#0a1024', '#05080f');
+
+      const g = c.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, 'rgba(0,0,0,0.55)');
+      g.addColorStop(1, 'rgba(0,0,0,0.8)');
+      c.fillStyle = g;
       c.fillRect(0, 0, W, H);
 
-      // дверь
-      const dw = 300, dh = 380;
-      const dx = (W - dw) / 2, dy = 120;
-      const open = this.doorOpen * (dw * 0.8);
-
-      c.fillStyle = '#02040a';
-      c.fillRect(dx, dy, dw, dh);
-
-      if (this.doorOpen > 0) {
-        const g = c.createRadialGradient(W / 2, dy + dh / 2, 10, W / 2, dy + dh / 2, 340);
-        g.addColorStop(0, 'rgba(255,230,170,' + (0.45 * this.doorOpen) + ')');
-        g.addColorStop(1, 'rgba(255,230,170,0)');
-        c.fillStyle = g;
-        c.fillRect(0, 0, W, H);
-      }
-
-      c.fillStyle = '#2a3560';
-      c.fillRect(dx - open, dy, dw / 2 + open, dh);
-      c.fillRect(dx + dw / 2, dy, dw / 2 + open, dh);
-      c.strokeStyle = '#3d4c86';
-      c.lineWidth = 4;
-      c.strokeRect(dx - open, dy, dw / 2 + open, dh);
-      c.strokeRect(dx + dw / 2, dy, dw / 2 + open, dh);
-      c.fillStyle = '#c8a84a';
-      c.beginPath(); c.arc(dx + dw / 2 - 16 - open * 0.4, dy + dh / 2, 8, 0, 7); c.fill();
-      c.beginPath(); c.arc(dx + dw / 2 + 16 + open * 0.4, dy + dh / 2, 8, 0, 7); c.fill();
-
-      // код
+      // охранник — фон
+      c.fillStyle = 'rgba(60,70,120,0.35)';
+      rr(c, 370, 76, 220, 100, 14); c.fill();
+      c.strokeStyle = 'rgba(74,99,184,0.55)';
+      c.lineWidth = 2;
+      rr(c, 370, 76, 220, 100, 14); c.stroke();
+      c.fillStyle = 'rgba(148,176,194,0.55)';
+      c.font = 'bold 14px "PixelText", Verdana';
       c.textAlign = 'center';
-      c.font = 'bold 44px Verdana';
-      c.fillStyle = 'rgba(10,14,30,.9)';
-      rr(c, W / 2 - 150, dy + 26, 300, 70, 12); c.fill();
-      c.fillStyle = '#7ff0ff';
-      c.fillText(this.digits[0] + ' - ' + this.digits[1] + ' - ' + this.digits[2],
-                 W / 2, dy + 76);
+      c.textBaseline = 'middle';
+      c.fillText('ОХРАННИК', 480, 126);
+      c.textBaseline = 'alphabetic';
 
-      // загадка
-      c.font = '22px Verdana';
+      c.fillStyle = '#7ff0ff';
+      c.font = 'bold 16px "PixelTitle", Verdana';
+      c.textAlign = 'center';
+      c.fillText('ВОПРОС ' + (this.currentQ + 1) + ' / 3', W / 2, 195);
+
+      const q = this.activeQuestions[this.currentQ];
+      if (!q) return;
+
       c.fillStyle = '#dfe6ff';
-      if (this.idx < 3) {
-        wrapText(c, '«' + RIDDLES[this.idx].q + '»', W / 2, 62, 760, 32);
-      } else {
-        c.fillStyle = '#4fe0a0';
-        c.fillText('Код верный! Дверь открывается...', W / 2, 62);
-      }
+      c.font = 'bold 22px "PixelText", Verdana';
+      wrapText(c, '«' + q.q + '»', W / 2, 230, 800, 30);
 
-      // кнопки
-      if (this.idx < 3) {
-        const r = RIDDLES[this.idx];
-        for (let i = 0; i < 3; i++) {
-          const b = this.btnRect(i);
-          c.fillStyle = '#182450';
-          rr(c, b.x, b.y, b.w, b.h, 12); c.fill();
-          c.strokeStyle = '#4a63b8'; c.lineWidth = 2;
-          rr(c, b.x, b.y, b.w, b.h, 12); c.stroke();
-          c.fillStyle = '#dfe6ff';
-          c.font = '24px Verdana';
-          c.fillText(r.opts[i], b.x + b.w / 2, b.y + b.h / 2 + 9);
+      for (let i = 0; i < 4; i++) {
+        const b = this.btnRect(i);
+        let bgColor = '#182450';
+        let borderColor = '#4a63b8';
+
+        if (this.chosenAnswer === i) {
+          if (this.answerIsCorrect) { bgColor = '#1c5a30'; borderColor = '#4fe0a0'; }
+          else { bgColor = '#5a1c1c'; borderColor = '#ff6b8a'; }
+        } else if (this.chosenAnswer >= 0 && i === q.correct) {
+          bgColor = '#1c5a30'; borderColor = '#4fe0a0';
         }
+
+        c.fillStyle = bgColor;
+        rr(c, b.x, b.y, b.w, b.h, 10); c.fill();
+        c.strokeStyle = borderColor;
+        c.lineWidth = 3;
+        rr(c, b.x, b.y, b.w, b.h, 10); c.stroke();
+
+        c.fillStyle = '#dfe6ff';
+        c.font = '20px "PixelText", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(q.opts[i], b.x + b.w / 2, b.y + b.h / 2 + 2);
       }
+      c.textBaseline = 'alphabetic';
 
-      // спрятанные осколки (полупрозрачные, слегка мерцают)
-      let foundCount = 0;
-      for (let i = 0; i < this.hiddenFrags.length; i++) {
-        const f = this.hiddenFrags[i];
-        if (f.found) { foundCount++; continue; }
-        const alpha = 0.16 + 0.22 * (0.5 + 0.5 * Math.sin(this.t * 1.6 + f.phase));
-        if (IMG['fragment']) {
-          c.globalAlpha = alpha;
-          c.drawImage(IMG['fragment'], f.x - 16, f.y - 16, 32, 32);
-          c.globalAlpha = 1;
-        } else {
-          drawFragment(c, f.x, f.y, this.t + f.phase, 11, alpha);
-        }
-      }
-
-      // счётчик спрятанных осколков
-      c.fillStyle = 'rgba(6,10,24,.75)';
-      rr(c, W - 260, H - 44, 244, 34, 10); c.fill();
-      c.strokeStyle = '#4a63b8'; c.lineWidth = 2;
-      rr(c, W - 260, H - 44, 244, 34, 10); c.stroke();
-      c.fillStyle = '#7ff0ff';
-      c.font = 'bold 17px Verdana';
-      c.textAlign = 'center';
-      c.fillText('◆ Найдено осколков: ' + foundCount + ' / 5',
-                 W - 138, H - 22);
-
-      // сообщение
-      // сообщение
       if (this.msgT > 0) {
         drawBottomHint(c, this.msg, this.msgT, this.msgCol);
+      } else if (this.hintT > 0) {
+        drawBottomHint(c, 'Выбери правильный ответ', this.hintT, '#7ff0ff');
+      }
+    },
+
+    drawMaze: function (c) {
+      c.fillStyle = '#0a0e18';
+      c.fillRect(0, 0, W, H);
+
+      const OX = this.OX, OY = this.OY;
+      const CW = this.CW, CH = this.CH;
+
+      // ---- плашка «ЭТАЖ X / 3» — фиксированно под HUD, не зависит от OY ----
+      const plateY = 70;
+      c.fillStyle = 'rgba(6,10,24,0.9)';
+      rr(c, W / 2 - 70, plateY, 140, 22, 6); c.fill();
+      c.strokeStyle = '#4a63b8';
+      c.lineWidth = 1;
+      rr(c, W / 2 - 70, plateY, 140, 22, 6); c.stroke();
+      c.fillStyle = '#7ff0ff';
+      c.font = 'bold 12px "PixelText", Verdana';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('ЭТАЖ ' + (this.curFloor + 1) + ' / 3', W / 2, plateY + 11);
+      c.textBaseline = 'alphabetic';
+
+      // пульс для мигания выхода
+      const pulse = 0.4 + 0.6 * Math.abs(Math.sin(this.t * 3.5));
+
+      // ---- счётчик для номеров кабинетов ----
+      let roomCounter = 0;
+
+      // ---- клетки ----
+      for (let r = 0; r < this.ROW; r++) {
+        const row = this.maze[r];
+        for (let col = 0; col < this.COL; col++) {
+          const ch = row[col];
+          const x = OX + col * CW;
+          const y = OY + r * CH;
+
+          if (ch === '1') {
+            // глухая стена
+            c.fillStyle = '#1a2440';
+            c.fillRect(x, y, CW, CH);
+            c.fillStyle = '#253358';
+            c.fillRect(x + 1, y + 1, CW - 2, CH - 2);
+            c.strokeStyle = '#3b5dc9';
+            c.lineWidth = 1;
+            c.strokeRect(x + 0.5, y + 0.5, CW - 1, CH - 1);
+          } else if (ch === 'C') {
+            // кабинет в стене
+            roomCounter++;
+
+            c.fillStyle = '#2a1f3a';
+            c.fillRect(x, y, CW, CH);
+            c.fillStyle = '#3a2a50';
+            rr(c, x + 4, y + 4, CW - 8, CH - 8, 3); c.fill();
+            c.strokeStyle = '#5a4a80';
+            c.lineWidth = 1.5;
+            rr(c, x + 4, y + 4, CW - 8, CH - 8, 3); c.stroke();
+
+            // ручка двери
+            c.fillStyle = '#ffcd75';
+            c.beginPath();
+            c.arc(x + CW - 10, y + CH / 2, 1.8, 0, 7);
+            c.fill();
+
+            // номер кабинета — по порядку: 101, 102, 103...
+            const roomNum = (this.curFloor + 1) * 100 + roomCounter;
+            c.fillStyle = '#c8a8e8';
+            c.font = 'bold 11px "PixelText", Verdana';
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.fillText('' + roomNum, x + CW / 2, y + CH / 2);
+            c.textBaseline = 'alphabetic';
+          } else {
+            // пол
+            c.fillStyle = '#0e1428';
+            c.fillRect(x, y, CW, CH);
+            c.strokeStyle = 'rgba(80,120,200,0.08)';
+            c.lineWidth = 1;
+            c.strokeRect(x + 0.5, y + 0.5, CW - 1, CH - 1);
+          }
+        }
       }
 
-      // кот
-      if (IMG['cat_idle']) c.drawImage(IMG['cat_idle'], 96, H - 150, 110, 110);
-      else drawCat(c, 150, H - 40, 0.95, { t: this.t, flip: false });
+      // ---- выход с миганием ----
+      {
+        const x = OX + this.exitCol * CW;
+        const y = OY + this.exitRow * CH;
 
-      drawHUD(c);
+        const rad = 20 + 12 * pulse;
+        const gg = c.createRadialGradient(
+          x + CW / 2, y + CH / 2, 3,
+          x + CW / 2, y + CH / 2, rad
+        );
+        gg.addColorStop(0, 'rgba(255,205,117,' + (0.7 * pulse) + ')');
+        gg.addColorStop(1, 'rgba(255,205,117,0)');
+        c.fillStyle = gg;
+        c.beginPath();
+        c.arc(x + CW / 2, y + CH / 2, rad, 0, 7);
+        c.fill();
+
+        c.fillStyle = 'rgba(255,205,117,' + (0.55 + 0.45 * pulse) + ')';
+        rr(c, x + 3, y + 3, CW - 6, CH - 6, 4); c.fill();
+        c.strokeStyle = '#ffcd75';
+        c.lineWidth = 1.5 + pulse * 1.5;
+        rr(c, x + 3, y + 3, CW - 6, CH - 6, 4); c.stroke();
+
+        c.fillStyle = '#3a2a10';
+        c.font = 'bold 12px "PixelText", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(this.exitLabel, x + CW / 2, y + CH / 2 + 1);
+        c.textBaseline = 'alphabetic';
+      }
+
+      // ---- осколки ----
+      for (let i = 0; i < this.mazeFrags.length; i++) {
+        const f = this.mazeFrags[i];
+        if (f.taken) continue;
+        const x = OX + f.c * CW + CW / 2;
+        const y = OY + f.r * CH + CH / 2;
+        const alpha = 0.7 + 0.3 * Math.sin(this.t * 3 + f.phase);
+        if (IMG['fragment']) {
+          c.globalAlpha = alpha;
+          c.drawImage(IMG['fragment'], x - 12, y - 12, 24, 24);
+          c.globalAlpha = 1;
+        } else {
+          drawFragment(c, x, y, this.t + f.phase, 10, alpha);
+        }
+      }
+
+      // ---- кот ----
+      {
+        const cx = OX + this.catDrawX * CW + CW / 2;
+        const cy = OY + this.catDrawY * CH + CH / 2;
+        const scale = 0.45;
+        if (IMG['cat_idle']) {
+          c.save();
+          if (this.catFacing < 0) {
+            c.translate(cx, cy);
+            c.scale(-1, 1);
+            c.drawImage(IMG['cat_idle'],
+                        -CW * scale, -CH * scale,
+                        CW * scale * 2, CH * scale * 2);
+          } else {
+            c.drawImage(IMG['cat_idle'],
+                        cx - CW * scale, cy - CH * scale,
+                        CW * scale * 2, CH * scale * 2);
+          }
+          c.restore();
+        } else {
+          c.fillStyle = '#4a6fd4';
+          c.beginPath();
+          c.arc(cx, cy, CW * 0.35, 0, 7);
+          c.fill();
+        }
+      }
+
+      // ---- подсказка ----
+      if (this.hintT > 0) {
+        const txt = this.curFloor < 2
+          ? 'Найди лестницу (мигает) и осколки!'
+          : 'Найди аудиторию 305 (мигает) и осколки!';
+        drawBottomHint(c, txt, this.hintT, '#7ff0ff');
+      }
+
+      // ---- победа ----
+      if (this.mazeWin > 0) {
+        const a = Math.min(1, this.mazeWin);
+        c.fillStyle = 'rgba(5,8,20,' + (a * 0.75) + ')';
+        c.fillRect(0, 0, W, H);
+        c.fillStyle = '#ffcd75';
+        c.font = 'bold 42px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        if (this.curFloor < 2) {
+          c.fillText('ЛЕСТНИЦА НАЙДЕНА!', W / 2, H / 2);
+        } else {
+          c.fillText('АУДИТОРИЯ 305!', W / 2, H / 2);
+        }
+        c.textBaseline = 'alphabetic';
+      }
+    },
+
+    /* ---------- ОБЩЕЕ ---------- */
+    drawTransition: function (c) {
+      const a = Math.min(1, this.transT * 1.6);
+      c.fillStyle = 'rgba(5,8,20,' + (a * 0.9) + ')';
+      c.fillRect(0, 0, W, H);
+      c.fillStyle = '#cfe0ff';
+      c.font = 'bold 30px "PixelTitle", Verdana';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(this.transText, W / 2, H / 2);
+      c.textBaseline = 'alphabetic';
     }
   };
 }
@@ -5007,8 +5546,9 @@ function updateMap()
     const fragDiv = document.createElement('div');
     fragDiv.className = 'lvl-frag';
     const lvlFrag = G.fragmentsByLevel[n - 1];
-    fragDiv.textContent = '◆ ' + lvlFrag + ' / ' + MAX_FRAGMENTS_PER_LEVEL;
-    if (lvlFrag >= MAX_FRAGMENTS_PER_LEVEL) {
+    const lvlCap  = maxFragsFor(n);
+    fragDiv.textContent = '◆ ' + lvlFrag + ' / ' + lvlCap;
+    if (lvlFrag >= lvlCap) {
       fragDiv.style.color = '#ffcd75';
     } else if (lvlFrag > 0) {
       fragDiv.style.color = '#7ff0ff';
