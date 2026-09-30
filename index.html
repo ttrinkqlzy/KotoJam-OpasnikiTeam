@@ -952,7 +952,9 @@ const IMG_NAMES = [
   'bg_room_night', 'bg_corridor', 'bg_street', 'bg_door',
   'bg_classroom', 'bg_morning', 'heart', 'fragment', 'backpack_puzzle','road',
   'traffic_light', 'crowd', 'plt',
-  'page_1', 'page_2', 'page_3'
+  'page_1', 'page_2', 'page_3', 'bg_catch','backpack',
+  'item_notebook', 'item_apple', 'item_sandwich', 'item_pen', 'item_thermos',
+  'item_sock', 'item_cup', 'item_joystick', 'item_slipper'
 ];
 const SND_NAMES = ['jump', 'collect', 'hurt', 'win', 'alarm', 'meow', 'bgm', 'type'];
 const IMG = {}, SND = {};
@@ -3218,13 +3220,17 @@ skipPhase: function () {
       transText: '',
       done: false,
       lastMouse: { x: 0, y: 0 },
+
+      useBgImage: false,        // true — когда используем готовый фон
+      bgImageName: 'bg_catch',
   
       /* ===================== ФАЗА 1: РЮКЗАК ===================== */
       catX: 480,
-      catY: 430,               // низ кота (стоит на полу)
-      backpackW: 120,
-      backpackH: 68,
-      backpackTop: 272,        // верх рюкзака
+      catY: 490,               // низ кота (стоит на полу)
+      backpackW: 90,
+      backpackH: 52,
+      backpackTop: 340,        // верх рюкзака
+      backpackImgName: 'backpack',
 
       items: [],               // падающие предметы
       itemSpawnT: 0,
@@ -3236,26 +3242,39 @@ skipPhase: function () {
       catFacing: 1,// влево кот и вправо
 
       ITEM_TYPES: [
-        // ХОРОШИЕ (ловить)
-        { id: 'notebook', good: true,  color: '#e8d8a8', icon: 'К', r: 20, name: 'Конспект'  },
-        { id: 'apple',    good: true,  color: '#e05858', icon: 'Я', r: 20, name: 'Яблоко'    },
-        { id: 'sandwich', good: true,  color: '#c89858', icon: 'Б', r: 20, name: 'Бутерброд' },
-        { id: 'pen',      good: true,  color: '#404a78', icon: 'П', r: 20, name: 'Пенал'     },
-        { id: 'thermos',  good: true,  color: '#4a8ac8', icon: 'Т', r: 20, name: 'Термос'    },
-        // ПЛОХИЕ (не ловить)
-        { id: 'sock',     good: false, color: '#8a8a8a', icon: 'Н', r: 20, name: 'Носок'     },
-        { id: 'cup',      good: false, color: '#5a3a2a', icon: 'Ч', r: 20, name: 'Кружка'    },
-        { id: 'joystick', good: false, color: '#2a2a3a', icon: 'Д', r: 20, name: 'Джойстик'  },
-        { id: 'slipper',  good: false, color: '#6a3a4a', icon: 'Ш', r: 20, name: 'Тапок'     }
+        { id: 'notebook', good: true,  color: '#e8d8a8', icon: 'К', r: 20, name: 'Конспект',  imgName: 'item_notebook'  },
+        { id: 'apple',    good: true,  color: '#e05858', icon: 'Я', r: 20, name: 'Яблоко',    imgName: 'item_apple'     },
+        { id: 'sandwich', good: true,  color: '#c89858', icon: 'Б', r: 20, name: 'Бутерброд', imgName: 'item_sandwich'  },
+        { id: 'pen',      good: true,  color: '#404a78', icon: 'П', r: 20, name: 'Пенал',     imgName: 'item_pen'       },
+        { id: 'thermos',  good: true,  color: '#4a8ac8', icon: 'Т', r: 20, name: 'Термос',    imgName: 'item_thermos'   },
+        { id: 'sock',     good: false, color: '#8a8a8a', icon: 'Н', r: 20, name: 'Носок',     imgName: 'item_sock'      },
+        { id: 'cup',      good: false, color: '#5a3a2a', icon: 'Ч', r: 20, name: 'Кружка',    imgName: 'item_cup'       },
+        { id: 'joystick', good: false, color: '#2a2a3a', icon: 'Д', r: 20, name: 'Джойстик',  imgName: 'item_joystick'  },
+        { id: 'slipper',  good: false, color: '#6a3a4a', icon: 'Ш', r: 20, name: 'Тапок',     imgName: 'item_slipper'   }
       ],
   
       /* ===================== ФАЗА 2: ДОРОГА ===================== */
       GROUND: 450, GRAV: 2300,
-      dist: 0, target: 3600,
+      dist: 0, target: 8500,
       jy: 0, vy: 0, onGround: true,
       obstacles: [], fragments: [],
       nextSpawn: 760, nextFrag: 420,
       camShake: 0, buildings: [], collectFx: [],
+
+
+      /* ===================== ФАЗА 3: ОСТАНОВКА ===================== */
+      SUBWAY_ROAD_LEFT: 300,      // левый край дороги
+      SUBWAY_ROAD_RIGHT: 660,     // правый край дороги
+      SUBWAY_LANE_W: 120,         // ширина одной полосы (3 × 120 = 360)
+      subwayLane: 1,              // 0, 1, 2 — левая, средняя, правая
+      subwayCatX: 480,            // текущий X кота (анимируется плавно)
+      subwayDist: 0,
+      subwayTarget: 2400,         // дистанция пробежки
+      subwaySpeed: 260,
+      subwayObstacles: [],
+      subwaySpawnT: 0.5,
+      subwayCooldown: 0,
+      subwayDecor: [],
   
       /* ============================================================ */
       init: function () {
@@ -3272,27 +3291,27 @@ skipPhase: function () {
   
       progress: function () 
       {
-        if (this.phase === 0) 
-        {
-        return Math.min(1, this.caught / this.targetCaught);
-        }
-        return this.dist / this.target;
+        if (this.phase === 0) return Math.min(1, this.caught / this.targetCaught);
+        if (this.phase === 1) return this.dist / this.target;
+        return this.subwayDist / this.subwayTarget;
       },
   
       restartFromCheckpoint: function () {
         if (this.phase === 0) this.startCatch();
         else if (this.phase === 1) this.startRun();
+        else if (this.phase === 2) this.startSubway();
       },
   
       skipPhase: function () {
-        if (this.done) return;
         const self = this;
         if (this.phase === 0) {
           this.transT = 1.2;
           this.transText = 'SKIP → ФАЗА 2';
           setTimeout(function () { self.goToRunPhase(); }, 900);
         } else if (this.phase === 1) {
-          this.dist = this.target;   // update сам поймает финиш
+          this.dist = this.target;      // updateRun поймает финиш и уйдёт в фазу 2
+        } else if (this.phase === 2) {
+          this.subwayDist = this.subwayTarget;   // updateSubway поймает финиш
         }
       },
   
@@ -3300,22 +3319,42 @@ skipPhase: function () {
          ФАЗА 1: ловля предметов
          ============================================================ */
          startCatch: function () {
-    this.dragging = null;
-    this.hintT = 4;
-    this.items = [];
-    this.itemSpawnT = 0.6;
-    this.particles = [];
-    this.timer = 60;
-    this.caught = 0;
-    this.catX = W / 2;
-    this.lastMouse.x = W / 2;
-    this.lastMouse.y = H / 2;
-  },
+            const self = this;
+
+            this.dragging = null;
+            this.hintT = 4;
+            this.items = [];
+            this.itemSpawnT = 0.6;
+            this.particles = [];
+            this.timer = 60;
+            this.caught = 0;
+            this.catX = W / 2;
+            this.catFacing = 1;
+            this.lastMouse.x = W / 2;
+            this.lastMouse.y = H / 2;
+
+            if (!G.seenWarn) G.seenWarn = {};
+
+            if (!G.seenWarn.phase1catch) {
+              G.seenWarn.phase1catch = true;
+              setTimeout(function () {
+                showWarning(
+                  'ФАЗА 1: РЮКЗАК',
+                  'В шкафу что-то завалялось — и оно летит прямо на тебя.\n\n' +
+                  'Двигай кота мышью или стрелками, лови рюкзаком нужные предметы ' +
+                  'Мусор обходи стороной — за него снимается сердце.\n\n' +
+                  'Цель: поймать 12 предметов за отведённое время',
+                  '#7ff0ff'
+                );
+              }, 300);
+            }
+          },
 
   basketRect: function () {
+    const offsetFromCat = 45;  
     return {
       x: this.catX - this.backpackW / 2,
-      y: this.backpackTop,
+      y: this.catY - 78 - offsetFromCat,
       w: this.backpackW,
       h: this.backpackH
     };
@@ -3463,24 +3502,32 @@ skipPhase: function () {
     ОТРИСОВКА ФАЗЫ 1
     ============================================================ */
     drawCatch: function (c) {
-      // фон — ночная комната
-      c.fillStyle = '#0b1024';
-      c.fillRect(0, 0, W, H);
+      // ==== ФОН ====
+      if (this.useBgImage && IMG[this.bgImageName] && IMG[this.bgImageName].complete) 
+      {
+        c.drawImage(IMG[this.bgImageName], 0, 0, W, H);
+      } 
+      else 
+      {
+        // процедурный фон: комната + пол + шкаф
+        c.fillStyle = '#0b1024';
+        c.fillRect(0, 0, W, H);
 
-      const bg = c.createRadialGradient(W * 0.5, 120, 30, W * 0.5, 120, 600);
-      bg.addColorStop(0, 'rgba(120, 90, 180, 0.20)');
-      bg.addColorStop(1, 'rgba(120, 90, 180, 0)');
-      c.fillStyle = bg;
-      c.fillRect(0, 0, W, H);
+        const bg = c.createRadialGradient(W * 0.5, 120, 30, W * 0.5, 120, 600);
+        bg.addColorStop(0, 'rgba(120, 90, 180, 0.20)');
+        bg.addColorStop(1, 'rgba(120, 90, 180, 0)');
+        c.fillStyle = bg;
+        c.fillRect(0, 0, W, H);
 
-      // пол
-      c.fillStyle = '#2a1f14';
-      c.fillRect(0, this.catY - 4, W, H - this.catY + 4);
-      c.fillStyle = '#3a2c1c';
-      c.fillRect(0, this.catY - 4, W, 6);
+        // пол
+        c.fillStyle = '#2a1f14';
+        c.fillRect(0, this.catY - 4, W, H - this.catY + 4);
+        c.fillStyle = '#3a2c1c';
+        c.fillRect(0, this.catY - 4, W, 6);
 
-      // шкаф сверху
-      this.drawCupboard(c);
+        // шкаф
+        this.drawCupboard(c);
+      }
 
       // предметы
       for (let i = 0; i < this.items.length; i++) {
@@ -3533,40 +3580,51 @@ skipPhase: function () {
 
     drawItem: function (c, it) {
       const t = it.type;
+      const img = IMG[t.imgName];
+      const hasImg = img && img.complete && img.naturalWidth > 0;
+
       c.save();
       c.translate(it.x, it.y);
       c.rotate(it.rot);
 
-      // тело
-      c.fillStyle = t.color;
-      c.beginPath();
-      c.arc(0, 0, t.r, 0, 7);
-      c.fill();
+      if (hasImg) {
+        // ===== Спрайт =====
+        const size = t.r * 2.4;          // ~48 px при r=20
+        c.drawImage(img, -size / 2, -size / 2, size, size);
 
-      // контур — плохие с красным, хорошие с тёмным
-      c.strokeStyle = t.good ? 'rgba(0,0,0,0.5)' : '#ff3b57';
-      c.lineWidth = t.good ? 2 : 3;
-      c.beginPath();
-      c.arc(0, 0, t.r, 0, 7);
-      c.stroke();
+        // красная обводка для плохих — поверх спрайта
+        if (!t.good) {
+          c.strokeStyle = '#ff3b57';
+          c.lineWidth = 3;
+          c.beginPath();
+          c.arc(0, 0, t.r + 6, 0, 7);
+          c.stroke();
+        }
+      } else {
+        // ===== Резервный кружок =====
+        c.fillStyle = t.color;
+        c.beginPath(); c.arc(0, 0, t.r, 0, 7); c.fill();
 
-      // иконка
-      c.fillStyle = t.good ? '#1a1c2c' : '#fff';
-      c.font = 'bold 18px "PixelTitle", Verdana';
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      c.fillText(t.icon, 0, 1);
+        c.strokeStyle = t.good ? 'rgba(0,0,0,0.5)' : '#ff3b57';
+        c.lineWidth = t.good ? 2 : 3;
+        c.beginPath(); c.arc(0, 0, t.r, 0, 7); c.stroke();
 
-      // крестик на плохих
-      if (!t.good) {
-        c.strokeStyle = 'rgba(255,60,80,0.9)';
-        c.lineWidth = 2;
-        c.beginPath();
-        c.moveTo(-t.r - 5, -t.r - 5);
-        c.lineTo( t.r + 5,  t.r + 5);
-        c.moveTo( t.r + 5, -t.r - 5);
-        c.lineTo(-t.r - 5,  t.r + 5);
-        c.stroke();
+        c.fillStyle = t.good ? '#1a1c2c' : '#fff';
+        c.font = 'bold 18px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(t.icon, 0, 1);
+
+        if (!t.good) {
+          c.strokeStyle = 'rgba(255,60,80,0.9)';
+          c.lineWidth = 2;
+          c.beginPath();
+          c.moveTo(-t.r - 5, -t.r - 5);
+          c.lineTo( t.r + 5,  t.r + 5);
+          c.moveTo( t.r + 5, -t.r - 5);
+          c.lineTo(-t.r - 5,  t.r + 5);
+          c.stroke();
+        }
       }
 
       c.restore();
@@ -3577,38 +3635,38 @@ skipPhase: function () {
       const cx = this.catX;
       const bp = this.basketRect();
 
-      // корпус рюкзака
-      c.fillStyle = '#c8422e';
-      rr(c, bp.x, bp.y, bp.w, bp.h, 12);
-      c.fill();
-      c.strokeStyle = '#7a1f14';
-      c.lineWidth = 3;
-      rr(c, bp.x, bp.y, bp.w, bp.h, 12);
-      c.stroke();
 
-      // крышка
-      c.fillStyle = '#a03220';
-      rr(c, bp.x + 6, bp.y - 8, bp.w - 12, 22, 8);
-      c.fill();
+      // ===== РЮКЗАК: спрайт или векторный резерв =====
+      const bpImg = IMG[this.backpackImgName];
+      const hasBpImg = bpImg && bpImg.complete && bpImg.naturalWidth > 0;
 
-      // «приёмное» отверстие внутри
-      c.fillStyle = 'rgba(0,0,0,0.7)';
-      rr(c, bp.x + 10, bp.y + 18, bp.w - 20, bp.h - 26, 6);
-      c.fill();
+      if (hasBpImg) {
+        c.drawImage(bpImg, bp.x, bp.y, bp.w, bp.h);
+      } else {
+        // векторный рюкзак
+        c.fillStyle = '#c8422e';
+        rr(c, bp.x, bp.y, bp.w, bp.h, 10); c.fill();
+        c.strokeStyle = '#7a1f14';
+        c.lineWidth = 3;
+        rr(c, bp.x, bp.y, bp.w, bp.h, 10); c.stroke();
 
-      // замок
-      c.fillStyle = '#ffcd75';
-      c.beginPath();
-      c.arc(cx, bp.y + 6, 5, 0, 7);
-      c.fill();
+        c.fillStyle = '#a03220';
+        rr(c, bp.x + 4, bp.y - 6, bp.w - 8, 16, 6); c.fill();
 
-      // кот
+        c.fillStyle = 'rgba(0,0,0,0.7)';
+        rr(c, bp.x + 8, bp.y + 14, bp.w - 16, bp.h - 20, 5); c.fill();
 
+        c.fillStyle = '#ffcd75';
+        c.beginPath();
+        c.arc(cx, bp.y + 4, 4, 0, 7);
+        c.fill();
+      }
+
+      // ===== КОТ =====
       const flip = this.catFacing < 0;
       const catBlink = (G.invuln > 0 && Math.floor(G.invuln * 12) % 2 === 0);
 
-      if (!catBlink) 
-      {
+      if (!catBlink) {
         if (!drawSprite(c, IMG['cat_idle'], cx - 40, this.catY - 78, 80, 78, flip)) {
           drawCat(c, cx, this.catY, 0.78, { t: this.t, run: 0, flip: flip });
         }
@@ -3618,10 +3676,9 @@ skipPhase: function () {
       c.fillStyle = '#7ff0ff';
       c.font = 'bold 11px "PixelText", Verdana';
       c.textAlign = 'center';
-      c.fillText('▲ ЛОВИ!', cx, bp.y - 14);
+      c.fillText('▲ ЛОВИ!', cx, bp.y - 12);
       c.textAlign = 'left';
     },
-
     drawCatchHUD: function (c) {
       const by = 74;
 
@@ -3647,26 +3704,9 @@ skipPhase: function () {
       c.textBaseline = 'middle';
       c.fillText(this.caught + ' / ' + this.targetCaught, bx + barW / 2, by + 13);
       c.textBaseline = 'alphabetic';
-
-      // таймер
-      const tt = Math.ceil(this.timer);
-      const tCol = this.timer < 10 ? '#ff5566' : '#7ff0ff';
-
-      c.fillStyle = 'rgba(6,10,24,0.75)';
-      rr(c, W - 160, by, 120, 26, 6); c.fill();
-      c.strokeStyle = tCol;
-      c.lineWidth = 2;
-      rr(c, W - 160, by, 120, 26, 6); c.stroke();
-
-      c.fillStyle = tCol;
-      c.font = 'bold 16px "PixelText", Verdana';
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      c.fillText(tt + ' с', W - 100, by + 14);
-      c.textBaseline = 'alphabetic';
-      c.textAlign = 'left';
     },  
-        goToRunPhase: function () {
+        goToRunPhase: function () 
+        {
           G.hearts = 3;
           G.lostThisPhase = false;
           this.phase = 1;
@@ -3674,7 +3714,15 @@ skipPhase: function () {
           this.transT = 1.0;
           this.transText = 'ФАЗА 2: ДОРОГА';
         },
-    
+        goToSubwayPhase: function () 
+        {
+          G.hearts = 3;
+          G.lostThisPhase = false;
+          this.phase = 2;
+          this.startSubway();
+          this.transT = 1.0;
+          this.transText = 'ФАЗА 3: ПРОБЕЖКА';
+        },
       /* ============================================================
          ФАЗА 2: ДОРОГА
          ============================================================ */
@@ -3696,7 +3744,7 @@ skipPhase: function () {
       runJump: function () {
         if (this.onGround && !this.done) {
           this.onGround = false;
-          this.vy = 830;
+          this.vy = 900;
           playSound('jump', 0.45);
         }
       },
@@ -3723,29 +3771,53 @@ skipPhase: function () {
       /* ============================================================
          ДИСПЕТЧЕРЫ
          ============================================================ */
-      jump: function () {
+      jump: function () 
+      {
         if (this.phase === 1) this.runJump();
       },
-      onPointerDown: function (x, y) {
+      onPointerDown: function (x, y) 
+      {
         if (this.phase === 1) this.runJump();
+        else if (this.phase === 2) 
+        {
+          if (x < W / 2) this.subwayMoveLeft();
+          else this.subwayMoveRight();
+        }
       },
-      onPointerMove: function (x, y) {
+      onPointerMove: function (x, y) 
+      {
         if (this.phase === 0) this.moveCat(x);
       },
-      onPointerUp: function (x, y) {
+      onPointerUp: function (x, y) 
+      {
       },
   
       /* ============================================================
          UPDATE
          ============================================================ */
-      update: function (dt) {
-        this.t += dt;
-        if (this.hintT > 0) this.hintT -= dt;
-        if (this.transT > 0) this.transT -= dt;
-        if (G.invuln > 0) G.invuln -= dt;
-        if (this.phase === 0) this.updateCatch(dt);
-        if (this.phase === 1) this.updateRun(dt);
-      },
+         update: function (dt) {
+          this.t += dt;
+          if (this.hintT > 0) this.hintT -= dt;
+          if (this.transT > 0) this.transT -= dt;
+          if (G.invuln > 0) G.invuln -= dt;
+
+          if (this.phase === 0) this.updateCatch(dt);
+          else if (this.phase === 1) this.updateRun(dt);
+          else if (this.phase === 2) {
+            // клавиатура ← → c кулдауном
+            this.subwayCooldown = Math.max(0, this.subwayCooldown - dt);
+            if (!this.done && this.subwayCooldown <= 0) {
+              if (G.keys['ArrowLeft'] || G.keys['KeyA']) {
+                this.subwayMoveLeft();
+                this.subwayCooldown = 0.18;
+              } else if (G.keys['ArrowRight'] || G.keys['KeyD']) {
+                this.subwayMoveRight();
+                this.subwayCooldown = 0.18;
+              }
+            }
+            this.updateSubway(dt);
+          }
+        },
   
       updateRun: function (dt) {
         if (!this.done) this.dist += this.speed() * dt;
@@ -3757,12 +3829,15 @@ skipPhase: function () {
         }
 
         // спавн препятствий
-        while (this.nextSpawn < this.dist + W + 320) {
+        const SAFE_BEFORE_BUS = 400;
+        while (this.nextSpawn < this.dist + W + 320 &&this.nextSpawn < this.target - SAFE_BEFORE_BUS) 
+        {
           this.spawnObstacle(this.nextSpawn);
           this.nextSpawn += 270 + Math.random() * 300;
         }
         // спавн осколков
-        while (this.nextFrag < this.dist + W + 260) {
+        while (this.nextFrag < this.dist + W + 260) 
+        {
           this.spawnFrag(this.nextFrag);
           this.nextFrag += 480 + Math.random() * 520;
         }
@@ -3829,22 +3904,25 @@ skipPhase: function () {
         if (this.camShake > 0) this.camShake = Math.max(0, this.camShake - 40 * dt);
 
         // финиш
-        if (!this.done && this.dist + 40 >= this.target) {
+        if (!this.done && this.dist + 40 >= this.target) 
+        {
           this.done = true;
-          setTimeout(function () { levelComplete(); }, 900);
+          const self = this;
+          setTimeout(function () { self.goToSubwayPhase(); }, 900);
         }
       },
   
       /* ============================================================
          DRAW
          ============================================================ */
-      draw: function (c) {
+      draw: function (c) 
+      {
         if (this.phase === 0) this.drawCatch(c);
         else if (this.phase === 1) this.drawRun(c);
+        else if (this.phase === 2) this.drawSubway(c);
         if (this.transT > 0) this.drawTransition(c);
         drawHUD(c);
       },
-  
       drawTransition: function (c) {
         const a = Math.min(1, this.transT * 1.6);
         c.fillStyle = 'rgba(5,8,20,' + (a * 0.9) + ')';
@@ -3959,7 +4037,7 @@ skipPhase: function () {
       // автобус
       const busSx = this.target - cam;
       if (busSx > -320 && busSx < W + 400) {
-        if (IMG['bus']) c.drawImage(IMG['bus'], busSx, this.GROUND - 140, 260, 140);
+        if (IMG['bus']) c.drawImage(IMG['bus'], busSx, this.GROUND - 200, 380, 200);
         else drawBus(c, busSx, this.GROUND);
       }
 
@@ -3998,9 +4076,293 @@ skipPhase: function () {
         else drawCat(c, 200, catY, 0.82, { t: this.t, run: this.onGround ? 1 : 0, flip: false });
       }
       c.restore();
-      }
-    };
-  }
+      },
+
+
+/* ============================================================
+   ФАЗА 3: ОСТАНОВКА (subway-runner)
+   ============================================================ */
+      startSubway: function () 
+      {
+          this.done = false;
+          this.subwayLane = 1;
+          this.subwayCatX = 480;
+          this.subwayDist = 0;
+          this.subwayTarget = 2400;
+          this.subwaySpeed = 260;
+          this.subwayObstacles = [];
+          this.subwaySpawnT = 0.5;
+          this.subwayCooldown = 0;
+          this.catFacing = 1;
+          this.hintT = 4;
+
+          // декорации по бокам — заранее сгенерированные, повторяются циклом
+          this.subwayDecor = [];
+          for (let i = 0; i < 24; i++) {
+            this.subwayDecor.push({
+              side: i % 2,
+              y: i * 240 + Math.random() * 120,
+              type: Math.random() < 0.55 ? 'tree' : 'bush',
+              variant: Math.floor(Math.random() * 3)
+            });
+          }
+        },
+
+        subwayMoveLeft: function () {
+          if (this.subwayLane > 0) {
+            this.subwayLane--;
+            this.catFacing = -1;
+            playSound('jump', 0.3);
+          }
+        },
+        subwayMoveRight: function () {
+          if (this.subwayLane < 2) {
+            this.subwayLane++;
+            this.catFacing = 1;
+            playSound('jump', 0.3);
+          }
+        },
+
+        updateSubway: function (dt) {
+          const W2 = W;
+          const H2 = H;
+
+          // ---- скорость растёт ----
+          if (!this.done) {
+            this.subwaySpeed = 260 + Math.min(180, this.subwayDist / 15);
+            this.subwayDist += this.subwaySpeed * dt;
+          }
+
+          // ---- спавн препятствий ----
+          if (!this.done) {
+            this.subwaySpawnT -= dt;
+            if (this.subwaySpawnT <= 0) {
+              this.subwaySpawnT = 0.55 + Math.random() * 0.45;
+
+              // выбрать 1 или 2 полосы, но не все три — чтобы всегда был проход
+              const laneCount = Math.random() < 0.35 ? 2 : 1;
+              const lanes = [0, 1, 2];
+              for (let i = lanes.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const t = lanes[i]; lanes[i] = lanes[j]; lanes[j] = t;
+              }
+              for (let k = 0; k < laneCount; k++) {
+                this.subwayObstacles.push({
+                  lane: lanes[k],
+                  y: -100,
+                  w: 88,
+                  h: 88,
+                  bob: Math.random() * 6.28
+                });
+              }
+            }
+          }
+
+          // ---- столкновения ----
+          const catY = 430;
+          const catBox = {
+            x: this.subwayCatX - 28,
+            y: catY - 60,
+            w: 56,
+            h: 78
+          };
+
+          for (let i = this.subwayObstacles.length - 1; i >= 0; i--) {
+            const o = this.subwayObstacles[i];
+            o.y += this.subwaySpeed * dt;
+            o.bob += dt * 6;
+
+            const ox = this.SUBWAY_ROAD_LEFT + o.lane * this.SUBWAY_LANE_W +
+                      (this.SUBWAY_LANE_W - o.w) / 2;
+            const oy = o.y;
+
+            if (ox < catBox.x + catBox.w && ox + o.w > catBox.x &&
+                oy < catBox.y + catBox.h && oy + o.h > catBox.y) {
+              if (damage()) {
+                this.subwayDist = Math.max(0, this.subwayDist - 100);
+                this.subwayObstacles.splice(i, 1);
+                continue;
+              }
+            }
+            if (o.y > H2 + 120) this.subwayObstacles.splice(i, 1);
+          }
+
+          // ---- плавное перемещение кота в целевую полосу ----
+          const targetX = this.SUBWAY_ROAD_LEFT + this.subwayLane * this.SUBWAY_LANE_W +
+                          this.SUBWAY_LANE_W / 2;
+          const dxp = targetX - this.subwayCatX;
+          this.subwayCatX += dxp * Math.min(1, dt * 12);
+
+          // ---- финиш ----
+          if (!this.done && this.subwayDist >= this.subwayTarget) {
+            this.done = true;
+            setTimeout(function () { levelComplete(); }, 900);
+          }
+        },
+
+        drawSubway: function (c) {
+          // ===== 1. Фон: газон =====
+          if (IMG['bg_subway'] && IMG['bg_subway'].complete) {
+            c.drawImage(IMG['bg_subway'], 0, 0, W, H);
+          } else {
+            c.fillStyle = '#4a7a3a';
+            c.fillRect(0, 0, W, H);
+            // трава — текстура
+            c.fillStyle = 'rgba(0,0,0,0.08)';
+            for (let y = 0; y < H; y += 12) {
+              const ox = (y * 7) % 20;
+              c.fillRect(ox, y, 6, 2);
+              c.fillRect((ox + 30) % W, y, 6, 2);
+            }
+          }
+
+          // ===== 2. Боковые декорации (деревья, кусты) =====
+          const cycle = 24 * 240;
+          for (let i = 0; i < this.subwayDecor.length; i++) {
+            const d = this.subwayDecor[i];
+            let dy = ((d.y + this.subwayDist) % cycle) - 200;
+            if (dy < -180 || dy > H + 180) continue;
+            const dx = d.side === 0 ? 90 + d.variant * 30 : W - 100 - d.variant * 30;
+            if (d.type === 'tree') this.drawTree(c, dx, dy, d.variant);
+            else this.drawBush(c, dx, dy);
+          }
+
+          // ===== 3. Дорога =====
+          c.fillStyle = '#c89858';
+          c.fillRect(this.SUBWAY_ROAD_LEFT, 0,
+                    this.SUBWAY_ROAD_RIGHT - this.SUBWAY_ROAD_LEFT, H);
+
+          // тёмная кромка у дороги
+          c.fillStyle = 'rgba(0,0,0,0.18)';
+          c.fillRect(this.SUBWAY_ROAD_LEFT, 0, 3, H);
+          c.fillRect(this.SUBWAY_ROAD_RIGHT - 3, 0, 3, H);
+
+          // текстура дороги — горизонтальные штрихи, скроллятся
+          c.strokeStyle = 'rgba(0,0,0,0.10)';
+          c.lineWidth = 2;
+          const scroll80 = this.subwayDist % 80;
+          for (let y = -scroll80; y < H; y += 80) {
+            c.beginPath();
+            c.moveTo(this.SUBWAY_ROAD_LEFT + 8, y);
+            c.lineTo(this.SUBWAY_ROAD_RIGHT - 8, y);
+            c.stroke();
+          }
+
+          // разделители полос — пунктирная вертикаль
+          c.strokeStyle = 'rgba(0,0,0,0.25)';
+          c.lineWidth = 2;
+          c.setLineDash([18, 20]);
+          for (let i = 1; i <= 2; i++) {
+            const x = this.SUBWAY_ROAD_LEFT + i * this.SUBWAY_LANE_W;
+            c.beginPath();
+            c.moveTo(x, 0);
+            c.lineTo(x, H);
+            c.stroke();
+          }
+          c.setLineDash([]);
+
+          // ===== 4. Препятствия =====
+          for (let i = 0; i < this.subwayObstacles.length; i++) {
+            const o = this.subwayObstacles[i];
+            const ox = this.SUBWAY_ROAD_LEFT + o.lane * this.SUBWAY_LANE_W +
+                      (this.SUBWAY_LANE_W - o.w) / 2;
+            const bob = Math.sin(o.bob) * 3;
+            this.drawCrowdSubway(c, ox, o.y + bob, o.w, o.h);
+          }
+
+          // ===== 5. Кот =====
+          const catY = 430;
+          const blink = (G.invuln > 0 && Math.floor(G.invuln * 12) % 2 === 0);
+          if (!blink) {
+            const flip = this.catFacing < 0;
+            if (!drawSprite(c, IMG['cat_run'], this.subwayCatX - 40, catY - 70, 80, 80, flip)) {
+              if (!drawSprite(c, IMG['cat_idle'], this.subwayCatX - 40, catY - 70, 80, 80, flip)) {
+                drawCat(c, this.subwayCatX, catY, 0.8, { t: this.t, run: 1, flip: flip });
+              }
+            }
+          }
+
+          // ===== 6. Прогресс-бар =====
+          const pw = W - 400;
+          const px = 200;
+          c.fillStyle = 'rgba(6,10,24,0.7)';
+          rr(c, px - 6, 74, pw + 12, 20, 8); c.fill();
+          c.strokeStyle = '#4a63b8';
+          c.lineWidth = 2;
+          rr(c, px - 6, 74, pw + 12, 20, 8); c.stroke();
+          const pct = Math.min(1, this.subwayDist / this.subwayTarget);
+          c.fillStyle = '#7ff0ff';
+          rr(c, px, 78, pw * pct, 12, 4); c.fill();
+
+          if (this.hintT > 0) {
+            drawBottomHint(c, '← → или клик по экрану — меняй полосу',
+                          this.hintT, '#7ff0ff');
+          }
+        },
+
+        /* --------- ХЕЛПЕРЫ РИСОВАНИЯ ФАЗЫ 3 --------- */
+        drawTree: function (c, x, y, variant) {
+          if (IMG['tree'] && IMG['tree'].complete) {
+            c.drawImage(IMG['tree'], x - 45, y - 60, 90, 120);
+            return;
+          }
+          // процедурное дерево
+          c.fillStyle = '#5a3a1c';
+          c.fillRect(x - 6, y - 10, 12, 40);
+          c.fillStyle = variant === 0 ? '#3a7a2a' : (variant === 1 ? '#2a6a1a' : '#4a8a3a');
+          c.beginPath();
+          c.arc(x, y - 40, 38, 0, 7); c.fill();
+          c.beginPath();
+          c.arc(x - 22, y - 22, 26, 0, 7); c.fill();
+          c.beginPath();
+          c.arc(x + 22, y - 22, 26, 0, 7); c.fill();
+          c.fillStyle = 'rgba(255,255,255,0.15)';
+          c.beginPath();
+          c.arc(x - 8, y - 50, 12, 0, 7); c.fill();
+        },
+
+        drawBush: function (c, x, y) {
+          if (IMG['bush'] && IMG['bush'].complete) {
+            c.drawImage(IMG['bush'], x - 30, y - 25, 60, 50);
+            return;
+          }
+          c.fillStyle = '#3a6a2a';
+          c.beginPath();
+          c.arc(x - 14, y, 16, 0, 7); c.fill();
+          c.beginPath();
+          c.arc(x + 14, y, 16, 0, 7); c.fill();
+          c.beginPath();
+          c.arc(x, y - 8, 18, 0, 7); c.fill();
+          c.fillStyle = 'rgba(0,0,0,0.15)';
+          c.beginPath();
+          c.arc(x - 6, y + 6, 10, 0, 7); c.fill();
+        },
+
+        drawCrowdSubway: function (c, x, y, w, h) {
+          if (IMG['crowd_subway'] && IMG['crowd_subway'].complete) {
+            c.drawImage(IMG['crowd_subway'], x, y, w, h);
+            return;
+          }
+          // процедурная толпа — 4 фигурки
+          const n = 4;
+          for (let k = 0; k < n; k++) {
+            const px2 = x + 10 + k * (w - 20) / (n - 1);
+            const py = y + h / 2;
+            c.fillStyle = ['#c84a4a','#4a6fc8','#c8a84a','#6a4ac8'][k % 4];
+            c.beginPath();
+            c.arc(px2, py - 20, 10, 0, 7); c.fill();
+            c.fillStyle = '#3a3a5a';
+            rr(c, px2 - 10, py - 10, 20, 28, 6); c.fill();
+          }
+          // тёмный контур
+          c.strokeStyle = 'rgba(0,0,0,0.25)';
+          c.lineWidth = 2;
+          c.strokeRect(x, y, w, h);
+        },
+      };
+    }
+
+
 
 /* ============================================================
    12. УРОВЕНЬ 3 — «ПИН-КОД» + СПРЯТАННЫЕ ОСКОЛКИ
