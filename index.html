@@ -1046,6 +1046,7 @@ function startBgm() {
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
+ctx.imageSmoothingEnabled = false;
 const tcv = document.getElementById('titleCv');
 const tctx = tcv.getContext('2d');
 const ecv = document.getElementById('endCv');
@@ -3254,6 +3255,8 @@ skipPhase: function () {
       backpackH: 52,
       backpackTop: 340,        // верх рюкзака
       backpackImgName: 'backpack',
+      catchFrags: [],      // осколки в фазе ловли
+      catchFragT: 3,       // таймер спавна
 
       items: [],               // падающие предметы
       itemSpawnT: 0,
@@ -3298,6 +3301,8 @@ skipPhase: function () {
       subwaySpawnT: 0.5,
       subwayCooldown: 0,
       subwayDecor: [],
+      subwayFrags: [],     // осколки в фазе 3
+      subwayFragT: 2.5,    // таймер спавна
   
       /* ============================================================ */
       init: function () {
@@ -3311,7 +3316,12 @@ skipPhase: function () {
       },
   
       allowsDamage: function () { return  true;},
-  
+
+      hasFragments: function () 
+      {
+        return this.phase === 0 || this.phase === 2;
+      },
+
       progress: function () 
       {
         if (this.phase === 0) return Math.min(1, this.caught / this.targetCaught);
@@ -3350,6 +3360,8 @@ skipPhase: function () {
             this.itemSpawnT = 0.6;
             this.particles = [];
             this.timer = 60;
+            this.catchFrags = [];
+            this.catchFragT = 3;
             this.caught = 0;
             this.catX = W / 2;
             this.catFacing = 1;
@@ -3495,6 +3507,38 @@ skipPhase: function () {
       if (p.life <= 0) this.particles.splice(i, 1);
     }
 
+
+    // ---- спавн осколков ----
+    if (!this.done) {
+      this.catchFragT -= dt;
+      if (this.catchFragT <= 0) {
+        this.catchFragT = 4 + Math.random() * 3;
+        this.catchFrags.push({
+          x: 60 + Math.random() * (W - 120),
+          y: 130,
+          vy: 180 + Math.random() * 60,
+          phase: Math.random() * 6.28
+        });
+      }
+    }
+
+    // ---- падение осколков + сбор ----
+    for (let i = this.catchFrags.length - 1; i >= 0; i--) {
+      const f = this.catchFrags[i];
+      f.y += f.vy * dt;
+      const r = 22;
+      if (f.x + r > bp.x && f.x - r < bp.x + bp.w &&
+          f.y + r > bp.y && f.y - r < bp.y + bp.h) {
+        this.catchFrags.splice(i, 1);
+        playSound('collect', 0.6);
+        addFragment();
+        this.sparkle(f.x, f.y, true);
+        continue;
+      }
+      if (f.y > H + 60) this.catchFrags.splice(i, 1);
+    }
+
+
     // ---- победа / проигрыш ----
     if (this.done) return;
 
@@ -3526,35 +3570,23 @@ skipPhase: function () {
     ============================================================ */
     drawCatch: function (c) {
       // ==== ФОН ====
-      if (this.useBgImage && IMG[this.bgImageName] && IMG[this.bgImageName].complete) 
-      {
-        c.drawImage(IMG[this.bgImageName], 0, 0, W, H);
-      } 
-      else 
-      {
-        // процедурный фон: комната + пол + шкаф
-        c.fillStyle = '#0b1024';
-        c.fillRect(0, 0, W, H);
 
-        const bg = c.createRadialGradient(W * 0.5, 120, 30, W * 0.5, 120, 600);
-        bg.addColorStop(0, 'rgba(120, 90, 180, 0.20)');
-        bg.addColorStop(1, 'rgba(120, 90, 180, 0)');
-        c.fillStyle = bg;
-        c.fillRect(0, 0, W, H);
-
-        // пол
-        c.fillStyle = '#2a1f14';
-        c.fillRect(0, this.catY - 4, W, H - this.catY + 4);
-        c.fillStyle = '#3a2c1c';
-        c.fillRect(0, this.catY - 4, W, 6);
-
-        // шкаф
-        this.drawCupboard(c);
-      }
+      c.drawImage(IMG[this.bgImageName], 0, 0, W, H);
 
       // предметы
       for (let i = 0; i < this.items.length; i++) {
         this.drawItem(c, this.items[i]);
+      }
+
+      // осколки
+      for (let i = 0; i < this.catchFrags.length; i++) {
+        const f = this.catchFrags[i];
+        const bob = Math.sin(this.t * 3 + f.phase) * 4;
+        if (IMG['fragment']) {
+          c.drawImage(IMG['fragment'], f.x - 16, f.y + bob - 16, 32, 32);
+        } else {
+          drawFragment(c, f.x, f.y + bob, this.t, 14, 1);
+        }
       }
 
       // частицы
@@ -3861,11 +3893,27 @@ skipPhase: function () {
 
         // спавн препятствий
         const SAFE_BEFORE_BUS = 400;
-        while (this.nextSpawn < this.dist + W + 320 &&this.nextSpawn < this.target - SAFE_BEFORE_BUS) 
-        {
+        while (this.nextSpawn < this.dist + W + 320 &&
+              this.nextSpawn < this.target - SAFE_BEFORE_BUS) {
+
+          // минимальный зазор зависит от скорости: чем быстрее бежим — тем больше нужен
+          const minGap = 420 + (this.speed() - 300) * 0.7;   // 420..532
+          const gap = minGap + Math.random() * 200;           // +0..200
+
+          // гарантируем достаточный зазор от последнего поставленного препятствия
+          if (this.obstacles.length > 0) {
+            const last = this.obstacles[this.obstacles.length - 1];
+            const lastRight = last.x + last.w;
+            if (this.nextSpawn < lastRight + minGap) {
+              this.nextSpawn = lastRight + minGap;
+            }
+          }
+
           this.spawnObstacle(this.nextSpawn);
-          this.nextSpawn += 270 + Math.random() * 300;
+          this.nextSpawn += gap;
         }
+
+
         // спавн осколков
         while (this.nextFrag < this.dist + W + 260) 
         {
@@ -4116,10 +4164,11 @@ skipPhase: function () {
       startSubway: function () 
       {
           this.done = false;
+          this.subwayFrags = [];
+          this.subwayFragT = 2.5;
           this.subwayLane = 1;
           this.subwayCatX = 480;
           this.subwayDist = 0;
-          this.subwayTarget = 2400;
           this.subwaySpeed = 260;
           this.subwayObstacles = [];
           this.subwaySpawnT = 0.5;
@@ -4157,20 +4206,22 @@ skipPhase: function () {
         updateSubway: function (dt) {
           const W2 = W;
           const H2 = H;
+          const SAFE_BEFORE_END = 450;   // безопасная зона в конце (px)
 
-          // ---- скорость растёт ----
+          // ---- скорость и прогресс ----
           if (!this.done) {
             this.subwaySpeed = 260 + Math.min(180, this.subwayDist / 15);
             this.subwayDist += this.subwaySpeed * dt;
           }
 
           // ---- спавн препятствий ----
-          if (!this.done) {
+          // не спавним, если уже done ИЛИ входим в финишную безопасную зону
+          const nearEnd = this.subwayDist >= this.subwayTarget - SAFE_BEFORE_END;
+          if (!this.done && !nearEnd) {
             this.subwaySpawnT -= dt;
             if (this.subwaySpawnT <= 0) {
               this.subwaySpawnT = 0.55 + Math.random() * 0.45;
 
-              // выбрать 1 или 2 полосы, но не все три — чтобы всегда был проход
               const laneCount = Math.random() < 0.35 ? 2 : 1;
               const lanes = [0, 1, 2];
               for (let i = lanes.length - 1; i > 0; i--) {
@@ -4200,22 +4251,66 @@ skipPhase: function () {
 
           for (let i = this.subwayObstacles.length - 1; i >= 0; i--) {
             const o = this.subwayObstacles[i];
-            o.y += this.subwaySpeed * dt;
+
+            // ★ когда игра завершена — препятствия замирают
+            if (!this.done) {
+              o.y += this.subwaySpeed * dt;
+            }
             o.bob += dt * 6;
 
-            const ox = this.SUBWAY_ROAD_LEFT + o.lane * this.SUBWAY_LANE_W +
-                      (this.SUBWAY_LANE_W - o.w) / 2;
-            const oy = o.y;
+            // ★ проверяем столкновения только пока играем
+            if (!this.done) {
+              const ox = this.SUBWAY_ROAD_LEFT + o.lane * this.SUBWAY_LANE_W +
+                        (this.SUBWAY_LANE_W - o.w) / 2;
+              const oy = o.y;
 
-            if (ox < catBox.x + catBox.w && ox + o.w > catBox.x &&
-                oy < catBox.y + catBox.h && oy + o.h > catBox.y) {
-              if (damage()) {
-                this.subwayDist = Math.max(0, this.subwayDist - 100);
-                this.subwayObstacles.splice(i, 1);
-                continue;
+              if (ox < catBox.x + catBox.w && ox + o.w > catBox.x &&
+                  oy < catBox.y + catBox.h && oy + o.h > catBox.y) {
+                if (damage()) {
+                  this.subwayDist = Math.max(0, this.subwayDist - 100);
+                  this.subwayObstacles.splice(i, 1);
+                  continue;
+                }
               }
             }
+
             if (o.y > H2 + 120) this.subwayObstacles.splice(i, 1);
+          }
+
+                    // ---- спавн осколков ----
+          const nearEndFrag = this.subwayDist >= this.subwayTarget - 450;
+          if (!this.done && !nearEndFrag) {
+            this.subwayFragT -= dt;
+            if (this.subwayFragT <= 0) {
+              this.subwayFragT = 3.5 + Math.random() * 2.5;
+              this.subwayFrags.push({
+                lane: Math.floor(Math.random() * 3),
+                y: -60,
+                bob: Math.random() * 6.28
+              });
+            }
+          }
+
+          // ---- движение и сбор осколков ----
+          for (let i = this.subwayFrags.length - 1; i >= 0; i--) {
+            const f = this.subwayFrags[i];
+            if (!this.done) f.y += this.subwaySpeed * dt;
+            f.bob += dt * 6;
+
+            const fx = this.SUBWAY_ROAD_LEFT + f.lane * this.SUBWAY_LANE_W +
+                      this.SUBWAY_LANE_W / 2;
+            const fy = f.y + Math.sin(f.bob) * 4;
+            const r = 22;
+
+            if (!this.done &&
+                fx + r > catBox.x && fx - r < catBox.x + catBox.w &&
+                fy + r > catBox.y && fy - r < catBox.y + catBox.h) {
+              this.subwayFrags.splice(i, 1);
+              playSound('collect', 0.55);
+              addFragment();
+              continue;
+            }
+            if (f.y > H + 60) this.subwayFrags.splice(i, 1);
           }
 
           // ---- плавное перемещение кота в целевую полосу ----
@@ -4300,6 +4395,21 @@ skipPhase: function () {
             const bob = Math.sin(o.bob) * 3;
             this.drawCrowdSubway(c, ox, o.y + bob, o.w, o.h);
           }
+
+
+          // осколки на полосах
+          for (let i = 0; i < this.subwayFrags.length; i++) {
+            const f = this.subwayFrags[i];
+            const fx = this.SUBWAY_ROAD_LEFT + f.lane * this.SUBWAY_LANE_W +
+                      this.SUBWAY_LANE_W / 2;
+            const fy = f.y + Math.sin(f.bob) * 4;
+            if (IMG['fragment']) {
+              c.drawImage(IMG['fragment'], fx - 16, fy - 16, 32, 32);
+            } else {
+              drawFragment(c, fx, fy, this.t, 14, 1);
+            }
+          }
+
 
           // ===== 5. Кот =====
           const catY = 430;
@@ -5659,111 +5769,11 @@ function drawTitle(dt) {
   titleTime += dt;
   const t = titleTime;
 
-  if (IMG['bg_room_night']) {
-    c.drawImage(IMG['bg_room_night'], 0, 0, W, H);
-  } else {
-    const g = c.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#060b1c');
-    g.addColorStop(0.6, '#0a1230');
-    g.addColorStop(1, '#0d1734');
-    c.fillStyle = g;
-    c.fillRect(0, 0, W, H);
+  c.drawImage(IMG['bg_room_night'], 0, 0, W, H);
 
-    c.fillStyle = '#050a18';
-    c.fillRect(88, 80, 224, 210);
-    c.fillStyle = '#101c44';
-    c.fillRect(98, 90, 204, 190);
-
-    c.fillStyle = '#e6ecff';
-    c.beginPath(); c.arc(240, 140, 26, 0, 7); c.fill();
-    c.fillStyle = '#101c44';
-    c.beginPath(); c.arc(228, 132, 22, 0, 7); c.fill();
-
-    for (let i = 0; i < 26; i++) {
-      const sx = 100 + ((i * 97) % 196);
-      const sy = 96 + ((i * 53) % 176);
-      const a = 0.25 + 0.55 * Math.abs(Math.sin(t * 1.3 + i));
-      c.fillStyle = 'rgba(200,220,255,' + a + ')';
-      c.fillRect(sx, sy, 2, 2);
-    }
-    c.strokeStyle = '#1d2a55';
-    c.lineWidth = 8;
-    c.strokeRect(88, 80, 224, 210);
-    c.beginPath(); c.moveTo(200, 80); c.lineTo(200, 290); c.stroke();
-    c.beginPath(); c.moveTo(88, 185); c.lineTo(312, 185); c.stroke();
-  }
-
-  const lg = c.createRadialGradient(700, 300, 20, 700, 300, 430);
-  lg.addColorStop(0, 'rgba(255,222,150,.34)');
-  lg.addColorStop(0.5, 'rgba(255,210,130,.10)');
-  lg.addColorStop(1, 'rgba(255,210,130,0)');
-  c.fillStyle = lg;
-  c.fillRect(0, 0, W, H);
-
-  c.fillStyle = '#241a10';
-  c.fillRect(0, 400, W, 140);
-  c.fillStyle = '#382818';
-  c.fillRect(0, 400, W, 12);
-
-  c.save();
-  c.translate(700, 470); c.rotate(-0.05);
-  c.fillStyle = '#e9edf8';
-  c.shadowColor = 'rgba(0,0,0,.6)';
-  c.shadowBlur = 18;
-  c.fillRect(-130, -80, 260, 130);
-  c.shadowBlur = 0;
-  c.strokeStyle = '#9aa6c8'; c.lineWidth = 2;
-  c.strokeRect(-130, -80, 260, 130);
-  c.strokeStyle = '#6b7ba8';
-  for (let i = 0; i < 6; i++) {
-    c.beginPath();
-    c.moveTo(-110, -62 + i * 18);
-    c.lineTo(-110 + 120 + Math.sin(i * 1.7 + t) * 30, -62 + i * 18);
-    c.stroke();
-  }
-  c.restore();
-
-  c.fillStyle = '#d9e2f5';
-  rr(c, 470, 430, 52, 56, 8); c.fill();
-  c.fillStyle = '#3a2418';
-  c.beginPath(); c.ellipse(496, 434, 22, 7, 0, 0, 7); c.fill();
-  c.strokeStyle = '#d9e2f5'; c.lineWidth = 7;
-  c.beginPath(); c.arc(528, 452, 16, -Math.PI / 2, Math.PI / 2); c.stroke();
-  c.strokeStyle = 'rgba(255,255,255,.22)'; c.lineWidth = 3;
-  for (let i = 0; i < 2; i++) {
-    c.beginPath();
-    c.moveTo(484 + i * 18, 424);
-    c.quadraticCurveTo(478 + i * 18 + Math.sin(t * 2 + i) * 8, 402, 486 + i * 18, 382);
-    c.stroke();
-  }
-
-  c.fillStyle = '#2a3350';
-  c.fillRect(806, 300, 10, 110);
-  c.fillStyle = '#3b4668';
-  c.beginPath();
-  c.moveTo(770, 300); c.lineTo(850, 300);
-  c.lineTo(838, 262); c.lineTo(782, 262); c.closePath(); c.fill();
-  c.fillStyle = 'rgba(255,230,160,.9)';
-  c.beginPath(); c.ellipse(810, 302, 36, 8, 0, 0, 7); c.fill();
 
   drawSleepCat(c, 690, 470, 1.0, t);
 
-  c.fillStyle = 'rgba(180,210,255,.75)';
-  c.font = 'bold 24px Verdana';
-  c.textAlign = 'center';
-  for (let i = 0; i < 3; i++) {
-    const ph = (t * 0.6 + i * 0.33) % 1;
-    c.globalAlpha = (1 - ph) * 0.75;
-    c.font = 'bold ' + (18 + i * 8) + 'px Verdana';
-    c.fillText('Z', 790 + ph * 90, 380 - ph * 100);
-  }
-  c.globalAlpha = 1;
-
-  const vg = c.createRadialGradient(W / 2, H / 2, 200, W / 2, H / 2, 620);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,.72)');
-  c.fillStyle = vg;
-  c.fillRect(0, 0, W, H);
 }
 
 /* ============================================================
