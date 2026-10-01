@@ -118,7 +118,7 @@ canvas {
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: 40px 20px 60px;
+  padding: 120px 20px 220px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.5s steps(4);
@@ -130,25 +130,27 @@ canvas {
 }
 
 h1 {
-  margin: 0;
+  margin: 40px 0 0;
   font-size: 36px;
   line-height: 1.5;
   color: var(--c-text);
   text-shadow: 4px 4px 0 var(--c-shadow);
 }
 h1 span {
-  display: block;
+  display: inline;
   font-size: 14px;
   color: var(--c-accent);
-  margin-top: 16px;
-  letter-spacing: 4px;
-}
-.tag {
-  margin: 20px 0 0;
-  font-size: 14px;
-  color: var(--c-text-dim);
-  font-style: normal;
+  margin-left: 10px;
   letter-spacing: 1px;
+  vertical-align: middle;
+}
+/* синее слово в заголовке — тот же размер, что и остальной h1 */
+h1 .blue-word {
+  font-size: inherit;
+  color: var(--c-accent);
+  margin-left: 0;
+  vertical-align: baseline;
+  letter-spacing: inherit;
 }
 .title-bottom {
   display: flex;
@@ -158,9 +160,10 @@ h1 span {
 }
 .hint {
   font-size: 11px;
-  color: var(--c-text-dark);
+  color: #ffffff;
   letter-spacing: 1px;
   margin: 0;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.9);
 }
 
 /* ============================================================
@@ -407,7 +410,7 @@ h1 span {
   left: 60px;
   right: 60px;
   padding: 22px 32px;
-  background: rgba(10, 13, 24, 0.94);
+  background: rgba(10, 13, 24, 0.78);
   border: 4px solid var(--c-accent);
   box-shadow: 6px 6px 0 var(--c-shadow);
   min-height: 120px;
@@ -574,6 +577,58 @@ h1 span {
   letter-spacing: 1px;
 }
 
+/* ===== Слайдеры громкости ===== */
+.volume-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+.vol-label {
+  font-family: 'PixelText', monospace;
+  font-size: 13px;
+  color: var(--c-text);
+  letter-spacing: 1px;
+  min-width: 90px;
+  text-align: left;
+}
+.vol-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  background: var(--c-bg-1);
+  border: 2px solid var(--c-panel-2);
+  border-radius: 0;
+  outline: none;
+  cursor: pointer;
+}
+.vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 22px;
+  background: var(--c-accent);
+  border: 2px solid var(--c-shadow);
+  border-radius: 0;
+  cursor: pointer;
+}
+.vol-slider::-moz-range-thumb {
+  width: 14px;
+  height: 22px;
+  background: var(--c-accent);
+  border: 2px solid var(--c-shadow);
+  border-radius: 0;
+  cursor: pointer;
+}
+.vol-val {
+  font-family: 'PixelText', monospace;
+  font-size: 12px;
+  color: var(--c-text-dim);
+  min-width: 34px;
+  text-align: right;
+}
+
 /* ============================================================
    КНОПКА ПАУЗЫ В УГЛУ
    ============================================================ */
@@ -706,8 +761,7 @@ h1 span {
       </div>
       <div class="title-overlay" id="titleOverlay">
         <div>
-          <h1>КОТОДЖЕМ<span>: СЕССИЯ</span></h1>
-          <p class="tag">Ночь перед экзаменом. Четыре сна. Четыре страха.</p>
+          <h1><span class="blue-word">КОТОДЖЕМ:</span> СЕССИЯ</h1>
         </div>
         <div class="title-bottom">
           <button class="btn" id="btnStart">НАЧАТЬ</button>
@@ -744,6 +798,18 @@ h1 span {
           <button class="pbtn" id="btnHint">Подсказка (H)</button>
           <button class="pbtn" id="btnRestartLvl">Начать уровень заново</button>
           <button class="pbtn" id="btnExit">Выйти на карту снов</button>
+
+          <div class="volume-row">
+            <label class="vol-label" for="volSfx">🔊 Звуки</label>
+            <input type="range" id="volSfx" class="vol-slider" min="0" max="100" value="100">
+            <span class="vol-val" id="volSfxVal">100</span>
+          </div>
+          <div class="volume-row">
+            <label class="vol-label" for="volBgm">🎵 Музыка</label>
+            <input type="range" id="volBgm" class="vol-slider" min="0" max="100" value="100">
+            <span class="vol-val" id="volBgmVal">100</span>
+          </div>
+
           <p class="pause-note">ESC — пауза / продолжить, H — подсказка</p>
         </div>
       </div>
@@ -808,6 +874,8 @@ const G = {
   inStory: false,
   seenStory: {},
   seenWarn: {}, 
+  volumeSfx: 1.0,   // 0..1 — множитель громкости всех эффектов
+  volumeBgm: 1.0,   // 0..1 — множитель громкости фоновой музыки
   hearts: 3,
   lostThisPhase: false,          // потерял ли сердце в текущей фазе
   lostThisLevel: false,          // потерял ли сердце за весь заход уровня
@@ -834,108 +902,164 @@ const LEVEL_META = [
 
 const STORY = {
   intro: { slides: [
-    { label: 'Комната в общежитии.\nНочь. Горит настольная лампа.\nКот сидит за столом над конспектом.',
+    { img: 'story_intro_1',
+      label: 'Комната в общежитии.\nНочь. Горит настольная лампа.\nКот сидит за столом над конспектом.',
       text: 'Три часа ночи.' },
-    { label: 'Кот склонился над конспектом.\nРядом — остывший кофе,\nраскрытый учебник, ручка.',
+    { img: 'story_intro_1',
+      label: 'Кот склонился над конспектом.\nРядом — остывший кофе,\nраскрытый учебник, ручка.',
       text: 'Общежитие. За окном тихо — только ветер шумит в проводах, да где-то далеко гудит поезд.' },
-    { label: 'Крупный план: кот трёт глаза лапой.\nФормулы плывут перед глазами.',
-      text: 'Завтра экзамен. Тот самый, к которому он готовился весь семестр. Тот самый, который снится ему уже неделю.' },
-    { label: 'Кот листает страницы.\nБуквы расплываются, сливаются в пятна.',
+    { img: 'story_intro_2',
+      label: 'Крупный план: кот трёт глаза лапой.\nФормулы плывут перед глазами.',
+      text: 'Завтра экзамен. Тот самый, к которому он готовился весь семестр.' },
+    { img: 'story_intro_2',
+      label: 'Крупный план: кот трёт глаза лапой.\nФормулы плывут перед глазами.',
+      text: 'Тот самый, который снится ему уже неделю.' },
+    { img: 'story_intro_3',
+      label: 'Кот листает страницы.\nБуквы расплываются, сливаются в пятна.',
       text: 'Он перечитывает строчку за строчкой. Но буквы путаются, слова ускользают.' },
-    { label: 'Кот что-то шепчет.\nВеки слипаются, голова тяжелеет.',
+    { img: 'story_intro_4',
+      label: 'Кот что-то шепчет.\nВеки слипаются, голова тяжелеет.',
       text: '«Ещё немного, — шепчет он себе. — Ещё чуть-чуть...»' },
-    { label: 'Кот кладёт голову на конспект.\nРучка выпадает из лапы.\nЛампа мерцает.',
-      text: 'Голова тяжелеет. Ручка выскальзывает из лапы. Кот кладёт голову на конспект — и проваливается в сон.' },
-    { label: 'Сон. Комната растянулась,\nстены ушли вверх,\nлисты летают в воздухе.',
+    { img: 'story_intro_5',
+      label: 'Кот кладёт голову на конспект.\nРучка выпадает из лапы.\nЛампа мерцает.',
+      text: 'Голова тяжелеет. Ручка выскальзывает из лапы.' },
+    { img: 'story_intro_5',
+      label: 'Кот кладёт голову на конспект.\nРучка выпадает из лапы.\nЛампа мерцает.',
+      text: 'Кот кладёт голову на конспект — и проваливается в сон.' },
+    { img: 'story_intro_6',
+      label: 'Сон. Комната растянулась,\nстены ушли вверх,\nлисты летают в воздухе.',
       text: 'А во сне его страхи оживают.' }
   ]},
 
   level1: { slides: [
-    { label: 'Та же комната, но не та.\nСтены растянулись, потолок ушёл вверх.\nЛисты летают в воздухе.',
-      text: 'Сон первый: «Конспект».\n\nКот открывает глаза — и видит свою комнату, но не свою.' },
-    { label: 'Кот тянется за листом —\nтот ускользает.\nЗа другим — исчезает.',
+    { img: 'story_level1_1',
+      label: 'Та же комната, но не та.\nСтены растянулись, потолок ушёл вверх.\nЛисты летают в воздухе.',
+      text: 'Сон первый: «Конспект». Кот открывает глаза — и видит свою комнату, но не свою.' },
+    { img: 'story_level1_2',
+      label: 'Кот тянется за листом —\nтот ускользает.\nЗа другим — исчезает.',
       text: 'Он тянется за одним — тот ускользает. За другим — исчезает.' },
-    { label: 'Кот испуганно смотрит на лапы.\nОни пустые.',
-      text: '«Я не помню... Я ничего не помню...»\n\nСтрах забыть всё — сильнее всего.' },
-    { label: 'Кот собирает листы.\nВокруг летают буквы.',
-      text: 'Чтобы прогнать его — нужно собрать конспект заново. Лист за листом. Слово за словом. Иначе — не проснуться.' }
+    { img: 'story_level1_3',
+      label: 'Кот испуганно смотрит на лапы.\nОни пустые.',
+      text: '«Я не помню... Я ничего не помню...» Страх забыть всё — сильнее всего.' },
+    { img: 'story_level1_4',
+      label: 'Кот собирает листы.\nВокруг летают буквы.',
+      text: 'Чтобы прогнать его — нужно собрать конспект заново.' },
+    { img: 'story_level1_4',
+      label: 'Кот собирает листы.\nВокруг летают буквы.',
+      text: 'Лист за листом. Слово за словом. Иначе — не проснуться.' }
   ]},
 
   level2: { slides: [
     { label: 'Звенит будильник.\nРезко. Прямо над ухом.\nКот вздрагивает.',
-      text: 'Сон второй: «Автобус».\n\nОн так увлёкся конспектом, что совсем потерял счёт времени.\n\nИ тут резко — звонок будильника. Прямо над ухом. Кот вздрогнул.\n\nБудильник поставлен не просто так: выходить через десять минут. А рюкзак ещё не собран.' },
+      sound: 'alarm', soundVol: 0.75,
+      text: 'Сон второй: «Автобус». Он так увлёкся конспектом, что совсем потерял счёт времени.' },
+    { label: 'Звенит будильник.\nРезко. Прямо над ухом.\nКот вздрагивает.',
+      text: 'И тут резко — звонок будильника. Прямо над ухом. Кот вздрогнул.' },
+    { label: 'Звенит будильник.\nРезко. Прямо над ухом.\nКот вздрагивает.',
+      text: 'Будильник поставлен не просто так: выходить через десять минут. А рюкзак ещё не собран.' },
     { label: 'Кот хватает рюкзак —\nа он пустой.\nШкаф распахивается сам.',
-      text: 'Он схватил рюкзак — а он пустой. Ни конспекта, ни ручки, ни термоса.\n\nИ тут шкаф распахнулся сам собой. Вещи посыпались наружу — прямо на кота.' },
+      text: 'Он схватил рюкзак — а он пустой. Ни конспекта, ни ручки, ни термоса.' },
+    { label: 'Кот хватает рюкзак —\nа он пустой.\nШкаф распахивается сам.',
+      text: 'И тут шкаф распахнулся сам собой. Вещи посыпались наружу — прямо на кота.' },
     { label: 'Вещи летят со всех сторон.\nКот ловит нужное.\nУворачивается от хлама.',
-      text: '«Лови нужное. Мусор — мимо», — будто шепчет сон.\n\nИначе не успеть.' }
+      text: '«Лови нужное. Мусор — мимо», — будто шепчет сон. Иначе не успеть.' }
   ]},
 
   level2_mid: { slides: [
     { label: 'Рюкзак за спиной.\nКот выскакивает на улицу.\nУтро. Холодный воздух.',
-      text: 'Рюкзак за спиной. Кот выскочил за дверь.\n\nУлица встретила его холодом и серым светом. Где-то там, в конце квартала, — маршрутка.\n\nИ она не будет ждать.' },
+      text: 'Рюкзак за спиной. Кот выскочил за дверь. Улица встретила его холодом и серым светом.' },
+    { label: 'Рюкзак за спиной.\nКот выскакивает на улицу.\nУтро. Холодный воздух.',
+      text: 'Где-то там, в конце квартала, — маршрутка. И она не будет ждать.' },
     { label: 'Впереди — знакомая маршрутка.\nДвери захлопываются.\nКот не успел.',
-      text: 'Он добежал до остановки — и увидел, как двери маршрутки захлопнулись прямо перед носом.\n\nВодитель не оглянулся. Не остановился.\n\nОн просто уехал.' },
+      text: 'Он добежал до остановки — и увидел, как двери маршрутки захлопнулись прямо перед носом.' },
+    { label: 'Впереди — знакомая маршрутка.\nДвери захлопываются.\nКот не успел.',
+      text: 'Водитель не оглянулся. Не остановился. Он просто уехал.' },
     { label: 'Маршрутка уходит вперёд.\nКот рвётся следом.',
-      text: '«Стой!» — крикнул кот, но маршрутка уже уходила.\n\nДогнать её будет нелегко. На пути — много препятствий.\n\nОн побежал.' }
+      text: '«Стой!» — крикнул кот, но маршрутка уже уходила.' },
+    { label: 'Маршрутка уходит вперёд.\nКот рвётся следом.',
+      text: 'Догнать её будет нелегко. На пути — много препятствий. Он побежал.' }
   ]},
 
   level2_mid2: { slides: [
     { label: 'Кот на подножке.\nОдна лапа в воздухе.\nСердце колотится.',
-      text: 'Двери закрылись прямо перед носом — но кот успел. Вскочил на последнюю ступеньку.\n\nОн успел.' },
+      text: 'Двери закрылись прямо перед носом — но кот успел. Вскочил на последнюю ступеньку. Он успел.' },
     { label: 'Маршрутка тормозит.\nКот спрыгивает.\nВпереди — главный корпус.',
-      text: 'Маршрутка остановилась. Кот спрыгнул на тротуар.\n\nГлавный корпус — уже виден, но между ним и котом — толпа.' },
+      text: 'Маршрутка остановилась. Кот спрыгнул на тротуар.' },
+    { label: 'Маршрутка тормозит.\nКот спрыгивает.\nВпереди — главный корпус.',
+      text: 'Главный корпус — уже виден, но между ним и котом — толпа.' },
     { label: 'Кот бежит сквозь толпу.\nЛюди лениво\nрасступаются.',
-      text: 'Он побежал.\n\nСтуденты текли навстречу вязкой рекой — и расступались неохотно, будто сквозь воду.\n\nСердце стучало где-то в горле.' }
+      text: 'Он побежал. Студенты текли навстречу вязкой рекой — и расступались неохотно, будто сквозь воду.' },
+    { label: 'Кот бежит сквозь толпу.\nЛюди лениво\nрасступаются.',
+      text: 'Сердце стучало где-то в горле.' }
   ]},
-
 
   level3: { slides: [
     { label: 'Главный корпус. Турникет.\nКот хлопает по карманам.\nПропуска нет.',
-      text: 'Кот вбегает в главный корпус. Турникет. Очередь. Экзамен уже начался.\n\nПропуска нет. Ни студенческого, ни паспорта.' },
+      text: 'Кот вбегает в главный корпус. Турникет. Очередь. Экзамен уже начался.' },
+    { label: 'Главный корпус. Турникет.\nКот хлопает по карманам.\nПропуска нет.',
+      text: 'Пропуска нет. Ни студенческого, ни паспорта.' },
     { label: 'Охранник строго смотрит\nповерх очков.',
-      text: '«Забыл пропуск? Знаем мы таких.\n\nОтветишь на три вопроса про ТюмГУ — пропущу. Не ответишь — извини.»' },
+      text: '«Забыл пропуск? Знаем мы таких. Ответишь на три вопроса про ТюмГУ — пропущу. Не ответишь — извини.»' },
     { label: 'Кот глубоко вздыхает.\nТри вопроса. Три сердца.',
-      text: 'Кот глубоко вздыхает. Три вопроса.\n\nНа размышление — секунды.' }
+      text: 'Кот глубоко вздыхает. Три вопроса. На размышление — секунды.' }
   ]},
 
   level4: { slides: [
     { label: 'Тишина стала густой,\nкак вода.\nЗа доской что-то шевелится.',
-      text: 'Сон четвёртый: «Зачётка».\n\nТишина стала густой, как вода. Из темноты за доской что-то шевельнулось.' },
+      text: 'Сон четвёртый: «Зачётка». Тишина стала густой, как вода.' },
+    { label: 'Тишина стала густой,\nкак вода.\nЗа доской что-то шевелится.',
+      text: 'Из темноты за доской что-то шевельнулось.' },
     { label: 'Из темноты выходит\nгигантская зачётка с зубами.\nСкалится.',
-      text: 'И тут кот видит её. Гигантская зачётка с зубами. Она шепчет голосом родителей: «А мы так надеялись...»' },
+      text: 'И тут кот видит её. Гигантская зачётка с зубами.' },
+    { label: 'Из темноты выходит\nгигантская зачётка с зубами.\nСкалится.',
+      text: 'Она шепчет голосом родителей: «А мы так надеялись...»' },
     { label: 'Кот смотрит ей в глаза.\nНе отступает.',
-      text: '«Я справлюсь», — шепчет кот.\n\nОн должен посмотреть ей в глаза. Иначе этот сон — навсегда.' }
+      text: '«Я справлюсь», — шепчет кот.' },
+    { label: 'Кот смотрит ей в глаза.\nНе отступает.',
+      text: 'Он должен посмотреть ей в глаза. Иначе этот сон — навсегда.' }
   ]},
 
   after1: { slides: [
     { label: 'Листы улеглись.\nВ комнате тихо.\nТолько лампа гудит.',
-      text: 'Листы улеглись. Стало тихо. Только лампа над столом всё ещё гудела — ровно, сонно.\n\nКот выдохнул. Конспект собран. Первый страх отступил.' },
+      text: 'Листы улеглись. Стало тихо. Только лампа над столом всё ещё гудела — ровно, сонно.' },
+    { label: 'Листы улеглись.\nВ комнате тихо.\nТолько лампа гудит.',
+      text: 'Кот выдохнул. Конспект собран. Первый страх отступил.' },
     { label: 'Кот смотрит в окно.\nЗа стеклом — уже не ночь.\nСерый рассвет.',
-      text: 'Он глянул в окно — а там уже не ночь. Серый рассвет, мутный и холодный.\n\nСколько же он просидел? Сон не отпускал его — время внутри сна шло само по себе.' },
+      text: 'Он глянул в окно — а там уже не ночь. Серый рассвет, мутный и холодный.' },
+    { label: 'Кот смотрит в окно.\nЗа стеклом — уже не ночь.\nСерый рассвет.',
+      text: 'Сколько же он просидел? Сон не отпускал его — время внутри сна шло само по себе.' },
     { label: 'На столе тикает будильник.\nСтрелки бегут.\nКот не помнит, когда его ставил.',
-      text: 'И в этой тишине — еле слышное тиканье. Будильник на столе. Кот не помнил, когда его ставил.\n\nСтрелки бежали слишком быстро. Слишком.\n\nСон перевернулся — и начался новый.' }
+      text: 'И в этой тишине — еле слышное тиканье. Будильник на столе. Кот не помнил, когда его ставил.' },
+    { label: 'На столе тикает будильник.\nСтрелки бегут.\nКот не помнит, когда его ставил.',
+      text: 'Стрелки бежали слишком быстро. Слишком.' },
+    { label: 'На столе тикает будильник.\nСтрелки бегут.\nКот не помнит, когда его ставил.',
+      text: 'Сон перевернулся — и начался новый.' }
   ]},
 
   after2: { slides: [
     { label: 'Главный корпус.\nТурникет. Очередь.\nКот подбегает к дверям.',
-      text: 'И вот наконец — знакомое здание с колоннами.\n\nЭкзамен уже начался. Надо успеть внутрь.' }
+      text: 'И вот наконец — знакомое здание с колоннами. Экзамен уже начался. Надо успеть внутрь.' }
   ]},
 
   after3: { slides: [
     { label: 'Кот входит в аудиторию 305.\nПарты. Доска.\nНо никого нет.',
-      text: 'Дверь поддалась. Охранник пропустил. Лабиринт отпустил.\n\nКот вошёл в аудиторию — и остановился.\n\nНикого. Только парты и доска.' },
+      text: 'Дверь поддалась. Охранник пропустил. Лабиринт отпустил.' },
+    { label: 'Кот входит в аудиторию 305.\nПарты. Доска.\nНо никого нет.',
+      text: 'Кот вошёл в аудиторию — и остановился. Никого. Только парты и доска.' },
     { label: 'Кот садится за первую парту.\nДостаёт ручку.\nТишина звенит в ушах.',
-      text: 'Он сел за первую парту. Достал ручку. Положил перед собой зачётку.\n\nИ тут тишина стала слишком громкой.' }
+      text: 'Он сел за первую парту. Достал ручку. Положил перед собой зачётку. И тут тишина стала слишком громкой.' }
   ]},
 
   after4: { slides: [
     { label: 'Зачётка исчезает.\nУтро. Будильник.\nКот улыбается.',
-      text: 'Зачётка замолчала. Кот посмотрел ей в глаза и сказал: «Я справлюсь.»\n\nИ она исчезла.\n\nУтро. Будильник. Экзамен.' }
+      text: 'Зачётка замолчала. Кот посмотрел ей в глаза и сказал: «Я справлюсь.» И она исчезла.' },
+    { label: 'Зачётка исчезает.\nУтро. Будильник.\nКот улыбается.',
+      text: 'Утро. Будильник. Экзамен.' }
   ]},
 
   fail: { slides: [
     { label: 'Тьма.',
-      text: 'Кот вздрогнул во сне...\n\nИ сон начался заново.' }
+      text: 'Кот вздрогнул во сне... И сон начался заново.' }
   ]}
 };
 
@@ -957,12 +1081,27 @@ const ACH_DEFS = [
     desc: 'Все 4 сна пройдены без потерь', kind: 'all_perfect' }
 ];
 
-/* Подсказки для каждого уровня */
+/* Подсказки по КАЖДОЙ ФАЗЕ каждого уровня.
+   Ключ — "<уровень>-<фаза>" (номер уровня и индекс фазы: 0, 1, 2).
+   Если подсказки под фазу нет — ищется ключ "<уровень>" (общая на уровень).
+   Уровень 4 оставлен как общая подсказка (все его фазы получают один текст). */
 const LEVEL_HINTS = {
-  1: 'Кликай по белым листам с текстом — это конспект. Не трогай листы с чёрными кляксами! Лови голубые осколки смелости — они усиливают удар по боссу.',
-  2: 'Пробел или клик — прыжок. Пробегай лужи, обходи столбы и людей. Осколки летают в воздухе: за низкими просто беги, за высокими — прыгай.',
-  3: 'Отвечай на три загадки — за верные ответы получишь цифры кода. На фоне спрятаны 5 осколков — ищи их внимательно, они еле светятся!',
-  4: 'Фаза 1 — зачётка кусает, уклоняйся. Фаза 2 — гоняется за тобой, беги и прыгай. Фаза 3 — замирает: кликай по ней, чтобы ударить. Осколков больше — урон сильнее!'
+  /* ===== УРОВЕНЬ 1 — «КОНСПЕКТ» ===== */
+  '1-0': 'Кликай по кусочкам конспекта и перетаскивай их в рамки-слоты. Ошибок тут нет — сердца не снимаются, экспериментируй спокойно.',
+  '1-1': 'Внизу экрана — стишок-загадка. Отгадай ответ и собери его из букв: кликай по буквам в правильном порядке. Неверная буква снимает сердце, лишние летают рядом — их не трогай.',
+  '1-2': 'Перетащи элементы в ячейки так, чтобы получилась верная формула. Ошибочный вернётся на место — попробуй другой. Лови осколки — они усилят удар по боссу.',
+
+  /* ===== УРОВЕНЬ 2 — «АВТОБУС» ===== */
+  '2-0': 'Двигай кота мышью или стрелками. Лови в рюкзак нужное — конспект, пенал, термос. Мусор (носок, кружка, джойстик, тапок) пропускай: минус сердце. Цель — 12 предметов за минуту.',
+  '2-1': 'Пробел или клик — прыжок. Перепрыгивай люки, оббегай мусорки, светофоры и толпы. Осколки: высокие — только в прыжке, низкие — на бегу.',
+  '2-2': '← → или клик по экрану — меняй полосу. Толпа идёт навстречу — уходи на свободную полосу заранее. Осколки появляются на каждой полосе.',
+
+  /* ===== УРОВЕНЬ 3 — «ПРОПУСК» ===== */
+  '3-0': 'Охранник задаст три вопроса про ТюмГУ. За неверный ответ — минус сердце. Всего три сердца — читай варианты внимательно.',
+  '3-1': 'Управление — стрелки или WASD. Найди мигающий выход (лестницу или 305) и собирай осколки по пути. Стены «1» и кабинеты «C» — непроходимы.',
+
+  /* ===== УРОВЕНЬ 4 — общая (пока не доделан) ===== */
+  4: 'Фаза 1 — зачётка кусает, уворачивайся. Фаза 2 — гоняется за тобой, беги и прыгай. Фаза 3 — замирает: кликай по ней, чтобы ударить. Осколков больше — урон сильнее!'
 };
 
 /* ============================================================
@@ -977,9 +1116,17 @@ const IMG_NAMES = [
   'traffic_light', 'crowd', 'plt',
   'page_1', 'page_2', 'page_3', 'bg_catch','backpack',
   'item_notebook', 'item_apple', 'item_sandwich', 'item_pen', 'item_thermos',
-  'item_sock', 'item_cup', 'item_joystick', 'item_slipper'
+  'item_sock', 'item_cup', 'item_joystick', 'item_slipper', 
+
+    // ----- Картинки для визуальной новеллы и фонов уровней -----
+  'story_intro_1', 'story_intro_2', 'story_intro_3', 'story_intro_4', 'story_intro_5', 'story_intro_6',
+  'story_level1_1', 'story_level1_2', 'story_level1_3', 'story_level1_4',
+  'level1_1', 'level1_2', 'level1_3',
 ];
-const SND_NAMES = ['jump', 'collect', 'hurt', 'win', 'alarm', 'meow', 'bgm', 'type'];
+const SND_NAMES = ['jump', 'collect', 'hurt', 'win', 'alarm',
+                   'meow1', 'meow2', 'meow3',
+                   'tik1', 'tik2', 'tik3',
+                   'bgm', 'type'];
 const IMG = {}, SND = {};
 const IMG_EXT = {};
 
@@ -1019,12 +1166,20 @@ function loadAssets(onProgress, onDone) {
 function playSound(name, vol) {
   const a = SND[name];
   if (!a) return;
+  if (G.volumeSfx <= 0) return;      // выключено — не играем
   try {
     a.currentTime = 0;
-    a.volume = (vol === undefined) ? 0.6 : vol;
+    const base = (vol === undefined) ? 0.6 : vol;
+    a.volume = Math.max(0, Math.min(1, base * G.volumeSfx));
     const p = a.play();
     if (p && p.catch) p.catch(function () {});
   } catch (e) {}
+}
+
+/** Случайный мяв из трёх (meow1/meow2/meow3) */
+function playRandomMeow(vol) {
+  const n = 1 + Math.floor(Math.random() * 3);   // 1, 2 или 3
+  playSound('meow' + n, vol === undefined ? 0.5 : vol);
 }
 
 let bgmStarted = false;
@@ -1034,7 +1189,7 @@ function startBgm() {
   bgmStarted = true;
   try {
     a.loop = true;
-    a.volume = 0.22;
+    a.volume = 0.22 * G.volumeBgm;
     const p = a.play();
     if (p && p.catch) p.catch(function () {});
   } catch (e) {}
@@ -1479,6 +1634,12 @@ function renderStorySlide() {
   const slide = storySlides[storyIndex];
   if (!slide) return;
   drawStorySlide(slide);
+
+  // Слайд может иметь свой звук — например, будильник
+  if (slide.sound) {
+    playSound(slide.sound, slide.soundVol !== undefined ? slide.soundVol : 0.7);
+  }
+
   storyFullText = slide.text || '';
   storyCharsTyped = 0;
   storyIsTyping = true;
@@ -1557,14 +1718,27 @@ document.getElementById('storySkip').addEventListener('click', function (e) {
   e.stopPropagation();       // чтобы клик не ушёл в advanceStory
   skipStory();
 });
-/* Подсказка */
+
+/* Подсказка — под текущий уровень И фазу */
 function showHint() {
-  const text = LEVEL_HINTS[G.currentLevel];
+  if (!activeLevel) return;
+
+  const lvl = G.currentLevel;
+  const ph  = activeLevel.phase || 0;
+
+  // 1) пробуем подсказку конкретной фазы: "1-0", "2-1", "3-1"
+  let text = LEVEL_HINTS[lvl + '-' + ph];
+
+  // 2) если нет — общая подсказка уровня: "4"
+  if (!text) text = LEVEL_HINTS[lvl];
+
+  // 3) если и этого нет — тихо выходим
   if (!text) return;
+
   hintBox.textContent = '💡 ' + text;
   hintBox.classList.add('show');
   clearTimeout(hintTimer);
-  hintTimer = setTimeout(function () { hintBox.classList.remove('show'); }, 6200);
+  hintTimer = setTimeout(function () { hintBox.classList.remove('show'); }, 8000);
 }
 
 /* ============================================================
@@ -1686,15 +1860,52 @@ document.getElementById('btnRestartLvl').addEventListener('click', function () {
   G.hearts = 3;
   goLevel(G.currentLevel, true);
 });
-document.getElementById('btnExit').addEventListener('click', function () {
-  closePause();
-  activeLevel = null;
-  fadeTo(function () {
-    G.mode = 'map';
-    showScreen('mapScreen');
-    updateMap();
+/* ============================================================
+   РЕГУЛИРОВКА ГРОМКОСТИ (слайдеры в паузе, запоминаем в localStorage)
+   ============================================================ */
+const volSfxEl    = document.getElementById('volSfx');
+const volBgmEl    = document.getElementById('volBgm');
+const volSfxValEl = document.getElementById('volSfxVal');
+const volBgmValEl = document.getElementById('volBgmVal');
+
+// Подгружаем сохранённые значения (если есть)
+try {
+  const s = parseFloat(localStorage.getItem('kj_sfx'));
+  if (!isNaN(s)) G.volumeSfx = Math.max(0, Math.min(1, s));
+  const b = parseFloat(localStorage.getItem('kj_bgm'));
+  if (!isNaN(b)) G.volumeBgm = Math.max(0, Math.min(1, b));
+} catch (e) {}
+
+function syncVolumeUI() {
+  const s = Math.round(G.volumeSfx * 100);
+  const b = Math.round(G.volumeBgm * 100);
+  if (volSfxEl)    volSfxEl.value = s;
+  if (volBgmEl)    volBgmEl.value = b;
+  if (volSfxValEl) volSfxValEl.textContent = s;
+  if (volBgmValEl) volBgmValEl.textContent = b;
+}
+
+if (volSfxEl) {
+  volSfxEl.addEventListener('input', function () {
+    G.volumeSfx = volSfxEl.value / 100;
+    if (volSfxValEl) volSfxValEl.textContent = volSfxEl.value;
+    try { localStorage.setItem('kj_sfx', G.volumeSfx); } catch (e) {}
+    // мгновенный отклик — короткий «тик»
+    playSound('tik2', 0.35);
   });
-});
+}
+if (volBgmEl) {
+  volBgmEl.addEventListener('input', function () {
+    G.volumeBgm = volBgmEl.value / 100;
+    if (volBgmValEl) volBgmValEl.textContent = volBgmEl.value;
+    try { localStorage.setItem('kj_bgm', G.volumeBgm); } catch (e) {}
+    // мгновенно применяем к уже играющей музыке
+    const a = SND['bgm'];
+    if (a) a.volume = 0.22 * G.volumeBgm;
+  });
+}
+
+syncVolumeUI();
 
 /* ============================================================
    7. ВВОД
@@ -1808,7 +2019,23 @@ function damage() {
   G.invuln = 1.5;
   G.lostThisPhase = true;
   G.lostThisLevel = true;
-  playSound('hurt', 0.7);
+
+  // ---- Выбор звука по уровню и фазе ----
+  const lvl = G.currentLevel;
+  const ph  = activeLevel ? (activeLevel.phase || 0) : 0;
+
+  if (lvl === 2 && ph >= 2) {
+    // 2 уровень, фаза 2 (дорога) и фаза 3 (пробежка) — hurt
+    playSound('hurt', 0.7);
+  } else if (lvl === 4) {
+    // 4 уровень пока не трогаем — там своя атмосфера
+    playSound('hurt', 0.7);
+  } else {
+    // 1 уровень, 2 уровень фаза 1, 3 уровень — случайный meow
+    playRandomMeow(0.5);
+  }
+  // ------------------------------------
+
   if (G.hearts <= 0) {
     G.hearts = 0;
     failPhase();
@@ -2088,9 +2315,12 @@ function Level1() {
     ],
 
     WORDS: [
-      { word: 'ЛЕКЦИЯ',   extra: 'АОИ' },
-      { word: 'ТЕОРЕМА',  extra: 'КСУ' },
-      { word: 'КОНСПЕКТ', extra: 'АМУ' }
+      { word: 'ЛЕКЦИЯ',   extra: 'АОИ',
+        riddle: 'Сломался прожектор, пропала проекция.\nПрофессор вздохнул: отменилася ______.' },
+      { word: 'ТЕОРЕМА',  extra: 'КСУ',
+        riddle: 'Мозг закипает, повисла система.\nСлишком сложна на доске _______.' },
+      { word: 'КОНСПЕКТ', extra: 'АМУ',
+        riddle: 'Отличнику скажем мы дружный респект\nЗа то, что он дал нам списать свой ________.' }
     ],
 
     FORMULAS: [
@@ -2607,20 +2837,39 @@ skipPhase: function () {
             self.transT = 0;
             self.transText = '';
 
-            if (!G.seenWarn.phase2hearts) {
-              G.seenWarn.phase2hearts = true;
+            /* --- цепочка уведомлений перед фазой 2 ---
+               1) сначала — зачем вообще собираем слова из стишков
+               2) затем — существующее предупреждение про сердца
+               3) в самом конце — переход к фазе                  */
+
+            function showHeartsWarn() {
+              if (!G.seenWarn.phase2hearts) {
+                G.seenWarn.phase2hearts = true;
+                showWarning(
+                  'ПОЯВИЛИСЬ СЕРДЦА',
+                  'С этого момента ошибки стоят сердечка. Три ошибки в одной фазе — и она начнётся заново.\n\nБудь внимателен.',
+                  '#ff4d6d',
+                  function () {
+                    self.transT = 1.0;
+                    self.transText = 'ФАЗА 2: В ГОЛОВЕ';
+                  }
+                );
+              } else {
+                self.transT = 1.0;
+                self.transText = 'ФАЗА 2: В ГОЛОВЕ';
+              }
+            }
+
+            if (!G.seenWarn.phase2riddle) {
+              G.seenWarn.phase2riddle = true;
               showWarning(
-                'ПОЯВИЛИСЬ СЕРДЦА',
-                'С этого момента ошибки стоят сердечка. Три ошибки в одной фазе — и она начнётся заново.\n\nБудь внимателен.',
-                '#ff4d6d',
-                function () {
-                  self.transT = 1.0;
-                  self.transText = 'ФАЗА 2: В ГОЛОВЕ';
-                }
+                'СЛОВА РАССЫПАЛИСЬ',
+                'Собирая конспект, кот вдруг понял: стоит закрыть глаза — и слова пропадают. Остались только обрывки рифм, в которых спрятаны нужные термины.\n\nЧтобы вернуть их, отгадай загадку внизу экрана и собери ответ из букв — кликай по буквам по порядку.\n\nОшибка — минус сердце.',
+                '#7ff0ff',
+                showHeartsWarn
               );
             } else {
-              self.transT = 1.0;
-              self.transText = 'ФАЗА 2: В ГОЛОВЕ';
+              showHeartsWarn();
             }
           }, 1300);
         }
@@ -2645,20 +2894,39 @@ skipPhase: function () {
             self.transT = 0;
             self.transText = '';
 
-            if (!G.seenWarn.phase3frags) {
-              G.seenWarn.phase3frags = true;
+            /* --- цепочка уведомлений перед фазой 3 ---
+               1) сначала — про формулы (что и как собирать)
+               2) затем — существующее предупреждение про осколки
+               3) в самом конце — переход к фазе                  */
+
+            function showFragsWarn() {
+              if (!G.seenWarn.phase3frags) {
+                G.seenWarn.phase3frags = true;
+                showWarning(
+                  'ОСКОЛКИ СМЕЛОСТИ',
+                  'На уровнях разбросаны голубые осколки. Собирай их — чем больше, тем сильнее удар по боссу в финале.\n\nНа каждом уровне не больше 5 штук. Перепрохождение сбрасывает счётчик уровня.',
+                  '#ffcd75',
+                  function () {
+                    self.transT = 1.0;
+                    self.transText = 'ФАЗА 3: ФОРМУЛЫ';
+                  }
+                );
+              } else {
+                self.transT = 1.0;
+                self.transText = 'ФАЗА 3: ФОРМУЛЫ';
+              }
+            }
+
+            if (!G.seenWarn.phase3formulas) {
+              G.seenWarn.phase3formulas = true;
               showWarning(
-                'ОСКОЛКИ СМЕЛОСТИ',
-                'На уровнях разбросаны голубые осколки. Собирай их — чем больше, тем сильнее удар по боссу в финале.\n\nНа каждом уровне не больше 5 штук. Перепрохождение сбрасывает счётчик уровня.',
-                '#ffcd75',
-                function () {
-                  self.transT = 1.0;
-                  self.transText = 'ФАЗА 3: ФОРМУЛЫ';
-                }
+                'СУХИЕ СТРОЧКИ',
+                'Память цепляется за последнее — за сухие строчки формул. Они рассыпались на кусочки: цифры, знаки, буквы.\n\nПеретаскивай элементы в ячейки так, чтобы получилась верная формула. Ошибёшься — элемент вернётся на место, попробуй другой.\n\nПо пути подбирай осколки смелости: они пригодятся в финале.',
+                '#c8a8ff',
+                showFragsWarn
               );
             } else {
-              self.transT = 1.0;
-              self.transText = 'ФАЗА 3: ФОРМУЛЫ';
+              showFragsWarn();
             }
           }, 1300);
         }
@@ -2696,7 +2964,7 @@ skipPhase: function () {
           if (l.x < 50)  { l.x = 50;  l.vx = Math.abs(l.vx); }
           if (l.x > W-50){ l.x = W-50; l.vx = -Math.abs(l.vx); }
           if (l.y < 180) { l.y = 180; l.vy = Math.abs(l.vy); }
-          if (l.y > H-60){ l.y = H-60; l.vy = -Math.abs(l.vy); }
+          if (l.y > H-105){ l.y = H-105; l.vy = -Math.abs(l.vy); }
           l.vx *= 0.998;
           l.vy *= 0.998;
           if (l.flash > 0) l.flash -= dt;
@@ -2754,6 +3022,7 @@ skipPhase: function () {
         for (let l of this.letters) {
           if (l.taken) continue;
           if (Math.abs(x - l.x) < 32 && Math.abs(y - l.y) < 32) {
+            playSound('tik1', 0.4);
             if (l.ch === needed) {
               l.taken = true;
               this.nextLetterIndex++;
@@ -2763,7 +3032,6 @@ skipPhase: function () {
                 setTimeout(function () { self.goNext(); }, 500);
               }
             } else {
-              playSound('hurt', 0.4);
               l.vx += (l.x - x) * 8;
               l.vy += (l.y - y) * 8;
               l.flash = 0.5;
@@ -2802,6 +3070,7 @@ skipPhase: function () {
             this.dragOff.x = x - e.x;
             this.dragOff.y = y - e.y;
             playSound('jump', 0.3);
+            playSound('tik3', 0.4);
             return;
           }
         }
@@ -2918,41 +3187,67 @@ skipPhase: function () {
 
     /* --- фоны --- */
     drawTableBg: function (c) {
-      const g = c.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, '#1a1208');
-      g.addColorStop(0.5, '#2a1a0c');
-      g.addColorStop(1, '#1a1208');
-      c.fillStyle = g;
-      c.fillRect(0, 0, W, H);
+      /* =========================================================
+                         НАСТРОЙКИ СИНЕЙ ВИНЬЕТКИ
+         ========================================================= */
+      const VIG_COLOR  = '30, 70, 150';   // RGB синего цвета виньетки
+      const VIG_ALPHA  = 0.40;            // плотность по краям (0 = нет, 1 = непрозрачно)
+      const VIG_INNER  = 200;             // радиус «чистой» зоны в центре (чем больше — тем шире светлый центр)
+      const VIG_OUTER  = 640;             // радиус полного затемнения по краям
+      const VIG_CX     = W / 2;           // центр виньетки по X
+      const VIG_CY     = H / 2;           // центр виньетки по Y
+      const VIG_MID    = 0.55;            // позиция среднего стопа (0..1) — где начинается плавное затемнение
+      const VIG_MID_A  = 0.35;            // доля от VIG_ALPHA на среднем стопе (0..1)
+      /* ========================================================= */
 
-      c.strokeStyle = 'rgba(80,50,20,0.25)';
-      c.lineWidth = 1;
-      for (let y = 70; y < H; y += 12) {
-        c.beginPath();
-        c.moveTo(0, y + Math.sin(y * 0.1) * 3);
-        c.lineTo(W, y + Math.cos(y * 0.15) * 3);
-        c.stroke();
+      // 1) ФОН — картинка, если есть; иначе процедурный
+      if (IMG['level1_1'] && IMG['level1_1'].complete
+          && IMG['level1_1'].naturalWidth > 0) {
+        c.drawImage(IMG['level1_1'], 0, 0, W, H);
+      } else {
+        const g = c.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, '#1a1208');
+        g.addColorStop(0.5, '#2a1a0c');
+        g.addColorStop(1, '#1a1208');
+        c.fillStyle = g;
+        c.fillRect(0, 0, W, H);
+
+        // кружка
+        c.fillStyle = '#3a2818';
+        c.beginPath(); c.arc(110, 180, 50, 0, 7); c.fill();
+        c.fillStyle = '#4a3520';
+        c.beginPath(); c.arc(110, 180, 40, 0, 7); c.fill();
+        c.fillStyle = '#050303';
+        c.beginPath(); c.arc(110, 180, 33, 0, 7); c.fill();
+        c.strokeStyle = '#3a2818'; c.lineWidth = 7;
+        c.beginPath(); c.arc(148, 180, 28, -Math.PI/2, Math.PI/2); c.stroke();
+
+        // свет лампы
+        const lg = c.createRadialGradient(W/2, 0, 20, W/2, 0, 520);
+        lg.addColorStop(0, 'rgba(255,220,140,0.22)');
+        lg.addColorStop(1, 'rgba(255,220,140,0)');
+        c.fillStyle = lg;
+        c.fillRect(0, 0, W, H);
       }
 
-      // кружка
-      c.fillStyle = '#3a2818';
-      c.beginPath(); c.arc(110, 180, 50, 0, 7); c.fill();
-      c.fillStyle = '#4a3520';
-      c.beginPath(); c.arc(110, 180, 40, 0, 7); c.fill();
-      c.fillStyle = '#050303';
-      c.beginPath(); c.arc(110, 180, 33, 0, 7); c.fill();
-      c.strokeStyle = '#3a2818'; c.lineWidth = 7;
-      c.beginPath(); c.arc(148, 180, 28, -Math.PI/2, Math.PI/2); c.stroke();
-
-      // свет лампы
-      const lg = c.createRadialGradient(W/2, 0, 20, W/2, 0, 520);
-      lg.addColorStop(0, 'rgba(255,220,140,0.22)');
-      lg.addColorStop(1, 'rgba(255,220,140,0)');
-      c.fillStyle = lg;
+      // 2) СИНЯЯ ВИНЬЕТКА — поверх фона, но под всеми игровыми элементами
+      const vg = c.createRadialGradient(
+        VIG_CX, VIG_CY, VIG_INNER,
+        VIG_CX, VIG_CY, VIG_OUTER
+      );
+      vg.addColorStop(0,     'rgba(' + VIG_COLOR + ',0)');
+      vg.addColorStop(VIG_MID, 'rgba(' + VIG_COLOR + ',' + (VIG_ALPHA * VIG_MID_A) + ')');
+      vg.addColorStop(1,     'rgba(' + VIG_COLOR + ',' + VIG_ALPHA + ')');
+      c.fillStyle = vg;
       c.fillRect(0, 0, W, H);
     },
 
     drawHeadBg: function (c) {
+      if (IMG['level1_2'] && IMG['level1_2'].complete
+          && IMG['level1_2'].naturalWidth > 0) {
+        c.drawImage(IMG['level1_2'], 0, 0, W, H);
+        return;
+      }
       const g = c.createRadialGradient(W/2, H/2, 50, W/2, H/2, 600);
       g.addColorStop(0, '#1a1f3a');
       g.addColorStop(1, '#05070f');
@@ -2973,6 +3268,11 @@ skipPhase: function () {
     },
 
     drawFormulaBg: function (c) {
+      if (IMG['level1_3'] && IMG['level1_3'].complete
+          && IMG['level1_3'].naturalWidth > 0) {
+        c.drawImage(IMG['level1_3'], 0, 0, W, H);
+        return;
+      }
       const g = c.createRadialGradient(W/2, 150, 30, W/2, 150, 500);
       g.addColorStop(0, '#221a3a');
       g.addColorStop(1, '#08060f');
@@ -3101,12 +3401,64 @@ skipPhase: function () {
       }
       c.textBaseline = 'alphabetic';
 
-      if (this.hintT > 0) {
-        drawBottomHint(c, 'Собери: ' + this.targetWord + ' — кликай буквы по порядку',
-                       this.hintT, '#7ff0ff');
-      } else {
-        drawBottomHint(c, 'Собери: ' + this.targetWord, 1, '#7ff0ff');
-      }
+      // Стишок-загадка снизу — виден постоянно, пока идёт сбор слова
+      this.drawRiddleHint(c, 1);
+    },
+
+    /* ----------------------------------------------------------
+       Стишок-загадка под фазой 2 (сбор слова).
+       Показывается всегда — в отличие от временных drawBottomHint,
+       которые исчезают по таймеру hintT.
+       Если захочется сдвинуть/перекрасить — крути блок НАСТРОЙКИ ниже.
+       ---------------------------------------------------------- */
+    drawRiddleHint: function (c, alpha) {
+      const cfg = this.WORDS[this.sub];
+      if (!cfg || !cfg.riddle) return;
+
+      /* --------- НАСТРОЙКИ ПЛАШКИ СО СТИШКОМ ---------
+         Всё вынесено наверх — крути, если надо подкрутить.
+         Плашка однострочная: стишок + приписка в одну строку.
+         ------------------------------------------------ */
+      const BOX_BOTTOM_PAD = 10;                    // отступ от нижнего края
+      const BOX_PAD_X      = 26;                    // боковые внутренние отступы
+      const BOX_PAD_Y      = 10;                    // вертикальный внутренний отступ
+      const FONT_SIZE      = 15;                    // размер шрифта стишка
+      const TEXT_COLOR     = '#cfe0ff';             // цвет текста
+      const BORDER_COLOR   = 'rgba(115,240,247,0.55)';
+      const FILL_COLOR     = 'rgba(6,10,24,0.90)';
+      const RIDDLE_SUFFIX  = '';  // приписка после стишка
+      const MAX_WIDTH_PAD  = 40;                    // мин. отступ от краёв экрана
+      /* ------------------------------------------------ */
+
+      const a = Math.min(1, alpha);
+      c.save();
+      c.globalAlpha = a;
+
+      // склеиваем стишок в одну строку: переносы \n превращаем в пробел
+      const riddleParts = cfg.riddle.split('\n');
+      const oneLine = '«' + riddleParts.join(' ') + '»' + RIDDLE_SUFFIX;
+
+      c.font = 'bold ' + FONT_SIZE + 'px "PixelText", Verdana';
+      const tw = c.measureText(oneLine).width;
+
+      const bw = Math.min(W - MAX_WIDTH_PAD * 2, tw + BOX_PAD_X * 2);
+      const bh = FONT_SIZE + BOX_PAD_Y * 2;
+      const bx = (W - bw) / 2;
+      const by = H - bh - BOX_BOTTOM_PAD;
+
+      c.fillStyle = FILL_COLOR;
+      rr(c, bx, by, bw, bh, 10); c.fill();
+      c.strokeStyle = BORDER_COLOR;
+      c.lineWidth = 2;
+      rr(c, bx, by, bw, bh, 10); c.stroke();
+
+      c.fillStyle = TEXT_COLOR;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(oneLine, W / 2, by + bh / 2 + 1);
+
+      c.textBaseline = 'alphabetic';
+      c.restore();
     },
 
     /* --- фаза 3 --- */
@@ -3487,7 +3839,6 @@ skipPhase: function () {
           playSound('collect', 0.6);
           this.sparkle(it.x, it.y, true);
         } else {
-          playSound('hurt', 0.55);
           this.sparkle(it.x, it.y, false);
           damage();
           if (G.paused) return;
@@ -4480,11 +4831,20 @@ skipPhase: function () {
         },
 
         drawCrowdSubway: function (c, x, y, w, h) {
-          if (IMG['crowd_subway'] && IMG['crowd_subway'].complete) {
-            c.drawImage(IMG['crowd_subway'], x, y, w, h);
+          // Используем crowd.png (как во 2-й фазе) — вписываем с сохранением пропорций
+          const img = IMG['crowd'];
+          if (img && img.complete && img.naturalWidth > 0) {
+            const natW = img.naturalWidth;
+            const natH = img.naturalHeight;
+            const scale = Math.min(w / natW, h / natH);
+            const dw = natW * scale;
+            const dh = natH * scale;
+            const dx = x + (w - dw) / 2;   // центрируем
+            const dy = y + (h - dh);       // прижимаем к низу (к «земле»)
+            c.drawImage(img, dx, dy, dw, dh);
             return;
           }
-          // процедурная толпа — 4 фигурки
+          // Процедурный fallback — если crowd.png не загрузился
           const n = 4;
           for (let k = 0; k < n; k++) {
             const px2 = x + 10 + k * (w - 20) / (n - 1);
@@ -4495,10 +4855,6 @@ skipPhase: function () {
             c.fillStyle = '#3a3a5a';
             rr(c, px2 - 10, py - 10, 20, 28, 6); c.fill();
           }
-          // тёмный контур
-          c.strokeStyle = 'rgba(0,0,0,0.25)';
-          c.lineWidth = 2;
-          c.strokeRect(x, y, w, h);
         },
       };
     }
@@ -4778,7 +5134,6 @@ function Level3() {
         this.msgCol = '#4fe0a0';
         this.msgT = 1.2;
       } else {
-        playSound('hurt', 0.6);
         this.msg = 'Не то. Охранник хмурится...';
         this.msgCol = '#ff6b8a';
         this.msgT = 1.5;
@@ -5488,7 +5843,7 @@ function Level4() {
           if (this.biteTimer <= 0) {
             this.biteState = 'tell'; this.biteTimer = 0.8;
             this.biteX = this.catX;
-            playSound('meow', 0.35);
+            playRandomMeow(0.35);
           }
         } else if (this.biteState === 'tell') {
           if (this.biteTimer <= 0) { this.biteState = 'lunge'; this.biteTimer = 0.30; }
@@ -5532,7 +5887,7 @@ function Level4() {
               this.dashing = 0.22;
               this.dashDir = dir;
               this.dashT = 2.4 + Math.random() * 0.8;
-              playSound('meow', 0.3);
+              playRandomMeow(0.3);
             }
           } else if (this.dashing > 0) {
             // сам рывок — короткий
@@ -5772,7 +6127,66 @@ function drawTitle(dt) {
   c.drawImage(IMG['bg_room_night'], 0, 0, W, H);
 
 
-  drawSleepCat(c, 690, 470, 1.0, t);
+  // ===== Спящий кот: спрайт-лист, вписываем с сохранением пропорций =====
+  (function drawSleepingCatOnTitle() {
+    const sleepFrames = 3;                 // сколько кадров в листе
+    const targetH = 150;                   // ↑ было 110 — стало заметно крупнее
+    const centerX = 690;                   // где по горизонтали
+    const floorY  = 480;                   // на какой линии "пола" стоит кот
+
+    const img = IMG['cat_sleep'];
+    if (img && img.complete && img.naturalWidth > 0) {
+      // Размер ОДНОГО кадра из спрайт-листа
+      const frameW = img.naturalWidth / sleepFrames;
+      const frameH = img.naturalHeight;
+
+      // Сохраняем пропорции: подгоняем по высоте, ширину считаем
+      const aspect = frameW / frameH;
+      const drawH = targetH;
+      const drawW = drawH * aspect;
+
+      const sleepX = centerX - drawW / 2;
+      const sleepY = floorY - drawH;
+
+      // ===== ТЕНЬ ПОД КОТОМ (лампа справа сверху → тень уходит влево) =====
+      (function drawShadowUnderCat() {
+        // ─── ГЛАВНЫЕ РУЧКИ ─────────────────────────────────
+        const shadowOffsetX = -22;   // ← сдвиг влево/вправо от кота
+        const shadowOffsetY = -25;     // ← ВЫСОТА ТЕНИ: минус = выше, плюс = ниже
+        const shadowW = drawW * 2.1; // ← ширина тени
+        const shadowH = 32;          // ← высота самой тени (насколько жирная)
+        const shadowAlpha = 0.5;     // ← максимальная плотность (0..1)
+        // ───────────────────────────────────────────────────
+
+        const sx = centerX + shadowOffsetX;
+        const sy = floorY + shadowOffsetY;
+
+        c.save();
+        // Сжимаем круг в эллипс — градиент тоже сожмётся, края останутся мягкими
+        c.translate(sx, sy);
+        c.scale(1, shadowH / (shadowW / 2));
+
+        const sg = c.createRadialGradient(0, 0, 0, 0, 0, shadowW / 2);
+        sg.addColorStop(0,    'rgba(0,0,0,' + shadowAlpha + ')');
+        sg.addColorStop(0.35, 'rgba(0,0,0,' + (shadowAlpha * 0.7) + ')');
+        sg.addColorStop(0.7,  'rgba(0,0,0,' + (shadowAlpha * 0.25) + ')');
+        sg.addColorStop(1,    'rgba(0,0,0,0)');
+
+        c.fillStyle = sg;
+        c.beginPath();
+        c.arc(0, 0, shadowW / 2, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+      })();
+
+      // сам кот — поверх тени
+      drawAnimated(c, img, sleepX, sleepY, drawW, drawH,
+                   false, t, 3, sleepFrames);
+    } else {
+      // fallback: векторный спящий кот (без отдельной тени — она есть в самой функции)
+      drawSleepCat(c, 690, 470, 1.0, t);
+    }
+  })();
 
 }
 
@@ -5786,7 +6200,7 @@ function prepareEnd() {
   document.getElementById('endStat').textContent =
     'Осколков смелости собрано: ' + getTotalFragments() +
     '   •   Достижений: ' + G.achievements.length + ' / ' + ACH_DEFS.length;
-  playSound('alarm', 0.6);
+  playSound('win', 0.85);
 }
 function drawEnd(dt) {
   const c = ectx;
@@ -6009,7 +6423,7 @@ const btnStart = document.getElementById('btnStart');
 const btnRestart = document.getElementById('btnRestart');
 
 btnStart.addEventListener('click', function () {
-  playSound('meow', 0.5);
+  playRandomMeow(0.5);
   startBgm();
   showStory(STORY.intro, function () {
     fadeTo(function () {
