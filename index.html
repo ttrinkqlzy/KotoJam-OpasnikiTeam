@@ -820,7 +820,8 @@ h1 .blue-word {
       <canvas id="endCv" width="960" height="540"></canvas>
       <div class="end-overlay">
         <h2>УТРО</h2>
-        <p>Будильник. Утро. Экзамен. Кот улыбнулся.</p>
+        <p>Экзамен сдан. В зачётке — «5».</p>
+        <p>А ведь это был не сон. Просто он очень устал.</p>
         <p class="end-stat" id="endStat"></p>
         <button class="btn" id="btnRestart">ЗАНОВО</button>
       </div>
@@ -1005,19 +1006,34 @@ const STORY = {
   ]},
 
   level4: { slides: [
-    { label: 'Тишина стала густой,\nкак вода.\nЗа доской что-то шевелится.',
-      text: 'Сон четвёртый: «Зачётка». Тишина стала густой, как вода.' },
-    { label: 'Тишина стала густой,\nкак вода.\nЗа доской что-то шевелится.',
-      text: 'Из темноты за доской что-то шевельнулось.' },
-    { label: 'Из темноты выходит\nгигантская зачётка с зубами.\nСкалится.',
-      text: 'И тут кот видит её. Гигантская зачётка с зубами.' },
-    { label: 'Из темноты выходит\nгигантская зачётка с зубами.\nСкалится.',
-      text: 'Она шепчет голосом родителей: «А мы так надеялись...»' },
-    { label: 'Кот смотрит ей в глаза.\nНе отступает.',
-      text: '«Я справлюсь», — шепчет кот.' },
-    { label: 'Кот смотрит ей в глаза.\nНе отступает.',
-      text: 'Он должен посмотреть ей в глаза. Иначе этот сон — навсегда.' }
+    { label: 'Тишина стала густой,\nкак вода.\nНа доске — три билета.',
+      text: 'Сон четвёртый: «Билеты».\n\nТишина сгустилась. На классной доске висели три билета.\n\nОдин — слева. Второй — по центру. Третий — справа.' },
+    { label: 'Билеты вырываются\nс доски.\nЛетят к коту.',
+      text: 'И вдруг они сорвались с места. Закружились в воздухе.\n\nПервый билет рванул вперёд — прямо на кота.' },
+    { label: 'Из тени выходит\nстарый кот в очках.\nСмотрит строго.',
+      text: 'Из тёмного угла вышел старый кот. Он был похож на самого студента — только старше, седее и строже.\n\n«Три билета — три испытания, — сказал он. — Пройдёшь — сдал. Нет — пеняй на себя.»\n\nОн поправил очки и растворился в темноте.' }
   ]},
+
+  level4_fail_p1: { slides: [
+    { label: 'Первый билет рвёт кота.\nМир темнеет.',
+      text: 'Первый билет оказался сильнее. Он рванул кота, отбросил, прижал к полу.\n\nВсё потемнело.' },
+    { label: 'Старый кот стоит рядом.\nСмотрит холодно.',
+      text: '«Ты не сдал, — сказал старый кот. — Даже первый билет не осилил.\n\nИди соберись. Или этот сон никогда не кончится.»' }
+  ]},
+
+  level4_fail_p2: { slides: [
+    { label: 'Второй билет оказался\nхитрее. Кот падает.',
+      text: 'Второй билет был не злее первого — но хитрее. Кот просчитался.\n\nВсё потемнело.' },
+    { label: 'Старый кот кивает.\nНо без радости.',
+      text: '«Сдал, — сказал старый кот. — Но слабо.\n\nНа троечку. Так себе.»' }
+  ]},
+
+  level4_fail_p3: { slides: [
+    { label: 'Третий билет почти разорван.\nНо последний удар\nне достиг цели.',
+      text: 'Третий билет треснул, истончился — но удержался. Кот дрогнул.\n\nОн почти победил.' },
+    { label: 'Старый кот подходит ближе.\nУлыбается уголком рта.',
+      text: '«Сдал на четвёрку, — сказал старый кот. — Уже лучше.\n\nПочти отлично. Попробуй ещё раз.»' }
+  ]}, 
 
   after1: { slides: [
     { label: 'Листы улеглись.\nВ комнате тихо.\nТолько лампа гудит.',
@@ -1051,12 +1067,46 @@ const STORY = {
   ]},
 
   after4: { slides: [
-    { label: 'Зачётка исчезает.\nУтро. Будильник.\nКот улыбается.',
-      text: 'Зачётка замолчала. Кот посмотрел ей в глаза и сказал: «Я справлюсь.» И она исчезла.' },
-    { label: 'Зачётка исчезает.\nУтро. Будильник.\nКот улыбается.',
-      text: 'Утро. Будильник. Экзамен.' }
-  ]},
+  { label: 'Третий билет разлетается\nна клочки.\nТьма отступает.',
+    text: 'Последний удар — и третий билет рассыпался на клочки. Они закружились в воздухе и растворились.\n\nТьма отступила. Стало тихо.' },
 
+  { label: 'Аудитория 305.\nПустые парты.\nСвет из окна.',
+    text: 'Кот огляделся.\n\nОн стоял в аудитории 305. За окном — день. Не рассвет, не сумерки. Просто день.\n\nПарты были пусты, но за одной кто-то сидел.' },
+
+  { label: 'За первой партой —\nстарый кот в очках.\nРаскрытая зачётка.',
+    text: 'За первой партой сидел старый кот. Тот самый дедус. Только уже не из сна — а как будто из жизни.\n\nПеред ним лежала раскрытая зачётка.' },
+
+  { label: 'Старый кот смотрит\nна студента.\nКивает.',
+    text: '«Ну что, — сказал он. — Экзамен сдан.»\n\nОн кивнул на зачётку — мол, подойди.' },
+
+  { label: 'Кот подходит.\nСмотрит на страницу.\nЗамирает.',
+    text: 'Кот сделал шаг. Потом ещё один. Сердце колотилось где-то в горле — как в бою с третьим билетом.\n\nОн заглянул в зачётку.' },
+
+  { label: 'Крупный план:\nстраница зачётки.\nКрупная «5».',
+    text: 'О-Т-Л-И-Ч-Н-О.\n\nПятёрка. Настоящая. Чернилами.' },
+
+  { label: 'Старый кот ставит\nподпись.\nСмотрит на студента.',
+    text: 'Старый кот поставил подпись. Закрыл зачётку. И только тогда посмотрел коту в глаза.\n\n«Рад встретить достойного студента», — сказал он. И улыбнулся.' },
+
+  { label: 'Кот выходит из аудитории.\nКоридор. Двери. Свет.',
+    text: 'Кот вышел в коридор.\n\nВсё вокруг было очень чётким. Слишком чётким для сна.\n\nСтуденты, разговоры, шаги. Настоящие.' },
+
+  { label: 'Кот останавливается.\nСмотрит на лапы.\nПытается вспомнить.',
+    text: 'И тут кот остановился.\n\nОн попытался вспомнить, как сюда попал. Билет, дорога, рюкзак, конспект... Всё сливалось в одно длинное воспоминание.\n\nОн думал, что это был сон.' },
+
+  { label: 'В лапах —\nнастоящая зачётка.\nТа же «5».',
+    text: 'Кот опустил взгляд.\n\nВ лапах была зачётка. Настоящая. Открытая. С пятёркой на первой странице.\n\nЭто был не сон.' },
+
+  { label: 'Кот вспоминает:\nон плохо спал ночью.\nОн правда готовился.',
+    text: 'Он вспомнил.\n\nНочью он плохо спал. Сидел над конспектом до самого утра. Перепутал явь и сон — так сильно устал.\n\nНо экзамен — экзамен он сдал. По-настоящему.' },
+
+  { label: 'Кот улыбается.\nСмотрит в окно.\nСолнце.',
+    text: 'Кот улыбнулся и прислонился к подоконнику.\n\nВсё это — билеты, зачётки, сны, страхи — осталось позади. Он справился.' },
+
+  { label: 'Кот идёт по коридору.\nЗачётка в рюкзаке.\nВпереди — лето.',
+    text: 'И он пошёл дальше по коридору — лёгкий, свободный, с зачёткой в рюкзаке.\n\nВпереди было лето. А в зачётке стояла пятёрка.' }
+  ]},
+  
   fail: { slides: [
     { label: 'Тьма.',
       text: 'Кот вздрогнул во сне... И сон начался заново.' }
@@ -2048,7 +2098,13 @@ function failPhase() {
   G.paused = true;
   const n = G.currentLevel;
   setTimeout(function () {
-    showStory(STORY.fail, function () {
+    let story = STORY.fail;
+    if (activeLevel && typeof activeLevel.getFailStory === 'function') {
+      const custom = activeLevel.getFailStory();
+      if (custom) story = custom;
+    }
+
+    showStory(story, function () {
       G.hearts = 3;
       G.lostThisPhase = false;
       if (activeLevel && activeLevel.restartFromCheckpoint) {
@@ -5629,481 +5685,338 @@ function Level3() {
    13. УРОВЕНЬ 4 — БОСС (бонус урона от осколков)
    ============================================================ */
 
-function Level4() {
+/* ============================================================
+   13. УРОВЕНЬ 4 — ТРИ БИЛЕТА (битва)
+   ============================================================ */
+   function Level4() {
   return {
-    name: 'Зачётка с зубами', subtitle: 'страх провала',
-    GROUND: 430,
-    catX: 300, jy: 0, vy: 0, onGround: true, targetX: null,
-    bossX: 720, bossY: 170, dy: 170,
-    bossHP: 3, phase: 1, pt: 0, t: 0,
-    biteState: 'idle', biteTimer: 2.0, biteX: 480,
-    dashT: 2.5, dashing: 0, dashDir: 1, dashWarn: 0,
-    recoilT: 0,                                 // пауза босса после попадания
-    angry: 0,
-    frags: [], fragT: 3,
-    particles: [], floatText: [],
-    hintT: 4, winT: 0, done: false,
-    catFacing: 1, // 1 = вправо, -1 = влево
+    name: 'Три билета', subtitle: 'страх неизвестного',
 
+    /* ===================== ОБЩЕЕ ===================== */
+    phase: 1,                       // 1, 2, 3
+    t: 0,
+    hintT: 4,
+    transT: 1.6,
+    transText: 'ФАЗА 1: БИЛЕТ № 1',
+    done: false,
+
+    /* ===================== ПОЛЕ БОЯ ===================== */
+    GROUND: 430,
+    catX: 300,
+    catY: 0,                        // вычисляется от GROUND
+    catFacing: 1,
+    jy: 0, vy: 0, onGround: true,
+
+    /* ===================== БИЛЕТ-ВРАГ ===================== */
+    enemyX: 700,
+    enemyY: 260,
+    enemyHP: 3,
+    enemyMaxHP: 3,
+    enemyAngle: 0,
+
+    /* ===================== ИНИЦИАЛИЗАЦИЯ ===================== */
     init: function () {
+      this.phase = 1;
+      this.t = 0;
+      this.hintT = 4;
+      this.done = false;
+      this.catX = 300;
       this.catFacing = 1;
-      this.catX = 300; this.jy = 0; this.vy = 0;
-      this.onGround = true; this.targetX = null;
-      this.bossX = 720; this.bossY = 170; this.dy = 170;
-      this.bossHP = 3; this.phase = 1; this.pt = 0; this.t = 0;
-      this.biteState = 'idle'; this.biteTimer = 2.0; this.biteX = 480;
-      this.dashT = 2.5; this.dashing = 0; this.dashDir = 1; this.dashWarn = 0;
-      this.recoilT = 0;
-      this.angry = 0;
-      this.frags = []; this.fragT = 3;
-      this.particles = []; this.floatText = [];
-      this.hintT = 4; this.winT = 0; this.done = false;
+      this.jy = 0; this.vy = 0; this.onGround = true;
+
+      this.startPhase(1);
+
+      this.transT = 1.6;
+      this.transText = 'ФАЗА 1: БИЛЕТ № 1';
     },
 
-    progress: function () { return (3 - Math.max(0, this.bossHP)) / 3; },
+    /* Запуск фазы N: сбрасывает врага и ставит его в начальные координаты */
+    startPhase: function (n) {
+      this.phase = n;
+      this.enemyMaxHP = 3;
+      this.enemyHP = 3;
+      this.enemyX = 700;
+      this.enemyY = 260;
+      this.enemyAngle = 0;
+      this.done = false;
+      this.jy = 0; this.vy = 0; this.onGround = true;
+      this.catX = 300;
 
+      // здесь при желании можно задать разные параметры для разных билетов
+      if (n === 1) { /* настройки билета 1 */ }
+      if (n === 2) { /* настройки билета 2 */ }
+      if (n === 3) { /* настройки билета 3 */ }
+    },
+
+    allowsDamage: function () { return true; },
+    hasFragments: function () { return false; },
+
+    progress: function () {
+      // 0 / 1 / 2 / 3 фазы + прогресс по HP внутри фазы
+      const base = (this.phase - 1) / 3;
+      const inPhase = 1 - (this.enemyHP / Math.max(1, this.enemyMaxHP));
+      return Math.min(1, base + inPhase / 3);
+    },
+
+    restartFromCheckpoint: function () {
+      this.startPhase(this.phase);
+      this.transT = 1.2;
+      this.transText = 'ФАЗА ' + this.phase + ' — ЗАНОВО';
+    },
+
+    skipPhase: function () {
+      if (this.done) return;
+      this.nextPhase();
+    },
+
+    /* ===================== ПЕРЕХОД К СЛЕДУЮЩЕЙ ФАЗЕ ===================== */
+    nextPhase: function () {
+      if (this.phase < 3) {
+        this.startPhase(this.phase + 1);
+        this.transT = 1.4;
+        this.transText = 'ФАЗА ' + this.phase + ': БИЛЕТ № ' + this.phase;
+      } else {
+        this.done = true;
+        setTimeout(function () { levelComplete(); }, 700);
+      }
+    },
+
+    /* ===================== ВВОД ===================== */
     jump: function () {
       if (this.onGround && !this.done) {
         this.onGround = false;
-        this.vy = 820;
+        this.vy = 900;
         playSound('jump', 0.45);
       }
     },
 
-    bossBox: function () {
-      return { x: this.bossX - 100, y: this.dy - 115, w: 200, h: 230 };
-    },
-    catBox: function () {
-      return {
-        x: this.catX - 26,
-        y: this.GROUND - this.jy - 64,
-        w: 52, h: 64
-      };
-    },
-/* DEBUG: добить босса */
-    skipPhase: function () 
-    {
-      if (this.done) return;
-      this.bossHP = 0;
-      this.done = true;
-      this.winT = 0.4;
-      playSound('win', 0.8);
-      this.burst(this.bossX, this.dy, '#ffd873', 30);
-    },
-
-    restartFromCheckpoint: function () 
-    {
-      this.init();             // перезапуск боя с нуля
-    },
-
     onPointerDown: function (x, y) {
       if (this.done) return;
-      if (this.phase === 3 && this.angry <= 0) {
-        const b = this.bossBox();
-        if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
-          this.hitBoss();
-          return;
-        }
-      }
-      this.targetX = Math.max(50, Math.min(W - 50, x));
-    },
 
-    hitBoss: function () {
-      let dmg = 1, label = '';
-      if (getTotalFragments() >= 10)      { dmg = 3; label = 'СОКРУШИТЕЛЬНЫЙ УДАР!'; }
-      else if (getTotalFragments() >= 5)  { dmg = 2; label = 'СИЛЬНЫЙ УДАР!'; }
-      else                        { dmg = 1; label = 'Удар!'; }
+      // =====================================================================
+      //   ЗДЕСЬ БУДЕТ ЛОГИКА АТАКИ ПО БИЛЕТУ
+      //   Пример: если клик попал по enemyX/enemyY — наносим урон:
+      //      this.enemyHP--; если 0 → this.nextPhase();
+      // =====================================================================
 
-      this.bossHP -= dmg;
-      playSound('hurt', 0.85);
-      G.flash = 0.7;
-      this.burst(this.bossX, this.dy, '#ffd873', 22);
-      this.floatText.push({
-        x: this.bossX, y: this.dy - 130, t: 1.4, text: label, col: '#ffe9a8'
-      });
-
-      if (this.bossHP <= 0) {
-        this.bossHP = 0;
-        this.done = true;
-        playSound('win', 0.8);
-        this.winT = 1.6;
-      } else {
-        this.angry = 2.2;
+      // Пока — временный «чит» для теста: клик по билету сразу убивает его.
+      const bx = this.enemyX - 70, by = this.enemyY - 90;
+      if (x >= bx && x <= bx + 140 && y >= by && y <= by + 180) {
+        this.enemyHP--;
+        if (this.enemyHP <= 0) this.nextPhase();
       }
     },
 
-    burst: function (x, y, col, n) {
-      for (let i = 0; i < n; i++) {
-        this.particles.push({
-          x: x, y: y,
-          vx: (Math.random() * 2 - 1) * 260,
-          vy: (Math.random() * 2 - 1) * 260,
-          life: 0.7, col: col
-        });
-      }
-    },
+    onPointerMove: function (x, y) {},
+    onPointerUp: function (x, y) {},
 
+    /* ===================== UPDATE ===================== */
     update: function (dt) {
       this.t += dt;
       if (this.hintT > 0) this.hintT -= dt;
+      if (this.transT > 0) this.transT -= dt;
       if (G.invuln > 0) G.invuln -= dt;
 
-      // --- движение кота ---
-      let dx = 0;
-      if (G.keys['ArrowLeft'] || G.keys['KeyA'])  { dx -= 1; this.targetX = null; }
-      if (G.keys['ArrowRight'] || G.keys['KeyD']) { dx += 1; this.targetX = null; }
+      if (this.done) return;
 
-      if (dx !== 0) 
-      {
-        this.catX += dx * 340 * dt;
-        this.catFacing = dx > 0 ? 1 : -1;          // ← клавиатура
-      } 
-      else if (this.targetX !== null) 
-      {
-        const diff = this.targetX - this.catX;
-        if (Math.abs(diff) < 6) 
-        {
-          this.targetX = null;
-        } 
-        else 
-        {
-          this.catX += Math.sign(diff) * Math.min(340 * dt, Math.abs(diff));
-          this.catFacing = diff > 0 ? 1 : -1;      // ← клик мышью
-        }
-      }
+      // движение кота ← →
+      let dx = 0;
+      if (G.keys['ArrowLeft'] || G.keys['KeyA']) { dx -= 1; this.catFacing = -1; }
+      if (G.keys['ArrowRight'] || G.keys['KeyD']) { dx += 1; this.catFacing = 1; }
+      if (dx !== 0) this.catX += dx * 340 * dt;
       this.catX = Math.max(52, Math.min(W - 52, this.catX));
 
+      // прыжок
       if (!this.onGround) {
         this.vy -= 2300 * dt;
         this.jy += this.vy * dt;
         if (this.jy <= 0) { this.jy = 0; this.vy = 0; this.onGround = true; }
       }
 
-      // --- подбираемые осколки ---
-      this.fragT -= dt;
-      if (this.fragT <= 0) {
-        this.fragT = 3.2;
-        this.frags.push({
-          x: 80 + Math.random() * (W - 160),
-          y: this.GROUND - 24,
-          t: Math.random() * 6.28,
-          life: 9
-        });
-      }
-      for (let i = this.frags.length - 1; i >= 0; i--) {
-        const f = this.frags[i];
-        f.t += dt; f.life -= dt;
-        const cb = this.catBox();
-        if (f.x > cb.x - 20 && f.x < cb.x + cb.w + 20 &&
-            Math.abs((this.GROUND - this.jy) - f.y) < 70) {
-          playSound('collect', 0.45);
-          addFragment();
-          this.burst(f.x, f.y - 20, '#7ff0ff', 8);
-          this.frags.splice(i, 1);
-          continue;
-        }
-        if (f.life <= 0) this.frags.splice(i, 1);
-      }
+      // вращение билета
+      this.enemyAngle += dt * 0.8;
 
-      // --- частицы и всплывающий текст ---
-      for (let i = this.particles.length - 1; i >= 0; i--) {
-        const q = this.particles[i];
-        q.x += q.vx * dt; q.y += q.vy * dt;
-        q.vx *= 0.96; q.vy *= 0.96;
-        q.life -= dt;
-        if (q.life <= 0) this.particles.splice(i, 1);
-      }
-      for (let i = this.floatText.length - 1; i >= 0; i--) {
-        const t = this.floatText[i];
-        t.t -= dt; t.y -= 30 * dt;
-        if (t.t <= 0) this.floatText.splice(i, 1);
-      }
-
-      if (this.done) {
-        this.winT -= dt;
-        if (this.winT <= 0 && G.mode === 'game') {
-          this.done = 'reported';
-          setTimeout(function () { levelComplete(); }, 10);
-        }
-        return;
-      }
-
-      // ================= ФАЗЫ =================
-      this.pt += dt;
-      if (this.angry > 0) this.angry -= dt;
-      if (this.recoilT > 0) this.recoilT -= dt;
-
-      if (this.phase === 1) {
-        // ---- ФАЗА 1: кусает сверху ----
-        this.bossX = 720 + Math.sin(this.t * 0.9) * 90;
-        this.bossY = 170 + Math.sin(this.t * 1.6) * 16;
-        this.biteTimer -= dt;
-
-        if (this.biteState === 'idle') {
-          if (this.biteTimer <= 0) {
-            this.biteState = 'tell'; this.biteTimer = 0.8;
-            this.biteX = this.catX;
-            playRandomMeow(0.35);
-          }
-        } else if (this.biteState === 'tell') {
-          if (this.biteTimer <= 0) { this.biteState = 'lunge'; this.biteTimer = 0.30; }
-        } else if (this.biteState === 'lunge') {
-          if (this.biteTimer <= 0) {
-            if (Math.abs(this.catX - this.biteX) < 95 && this.jy < 90) damage();
-            this.biteState = 'back'; this.biteTimer = 0.45;
-          }
-        } else if (this.biteState === 'back') {
-          if (this.biteTimer <= 0) {
-            this.biteState = 'idle';
-            this.biteTimer = 1.5 + Math.random() * 0.9;
-          }
-        }
-        if (this.pt > 13) {
-          this.phase = 2; this.pt = 0;
-          this.biteState = 'idle';
-          this.dashT = 1.8;
-          this.dashWarn = 0;
-          this.dashing = 0;
-          this.recoilT = 0.6;     // короткая пауза перед началом погони
-        }
-
-      } else if (this.phase === 2) {
-        // ---- ФАЗА 2: гоняется за котом (медленнее кота!) ----
-
-        // Если босс в откате после попадания — не двигается
-        if (this.recoilT <= 0) {
-          const dir = Math.sign(this.catX - this.bossX) || 1;
-
-          // базовая погоня МЕДЛЕННЕЕ кота (155 против 340)
-          if (this.dashing <= 0) {
-            this.bossX += dir * 155 * dt;
-          }
-
-          // --- логика рывка с телеграфом ---
-          if (this.dashWarn > 0) {
-            // идёт предупреждение — по его окончании старт рывка
-            this.dashWarn -= dt;
-            if (this.dashWarn <= 0) {
-              this.dashing = 0.22;
-              this.dashDir = dir;
-              this.dashT = 2.4 + Math.random() * 0.8;
-              playRandomMeow(0.3);
-            }
-          } else if (this.dashing > 0) {
-            // сам рывок — короткий
-            this.bossX += this.dashDir * 480 * dt;
-            this.dashing -= dt;
-          } else {
-            // кулдаун между рывками
-            this.dashT -= dt;
-            if (this.dashT <= 0) {
-              this.dashWarn = 0.45;   // начать телеграф
-            }
-          }
-        }
-
-        this.bossX = Math.max(120, Math.min(W - 120, this.bossX));
-
-        // --- контактный урон с отбросом ---
-        const b = this.bossBox(), cb = this.catBox();
-        if (b.x < cb.x + cb.w && b.x + b.w > cb.x &&
-            b.y < cb.y + cb.h && b.y + b.h > cb.y) {
-          if (damage()) {
-            // отбрасываем босса далеко от кота
-            const away = Math.sign(this.bossX - this.catX) || 1;
-            this.bossX += away * 200;
-            this.bossX = Math.max(120, Math.min(W - 120, this.bossX));
-            // и кота слегка назад
-            this.catX -= away * 70;
-            this.catX = Math.max(52, Math.min(W - 52, this.catX));
-            // сброс рывка + пауза, чтобы игрок успел отбежать
-            this.dashing = 0;
-            this.dashWarn = 0;
-            this.dashT = 1.8;
-            this.recoilT = 0.8;
-            this.burst(this.catX, this.GROUND - this.jy - 40, '#ff6b8a', 14);
-          }
-        }
-
-        if (this.pt > 14) {
-          this.phase = 3; this.pt = 0;
-          this.angry = 0;
-          this.dashing = 0;
-          this.dashWarn = 0;
-          this.recoilT = 0;
-        }
-
-      } else {
-        // ---- ФАЗА 3: замирает, уязвим ----
-        if (this.angry > 0) {
-          const dir = Math.sign(this.catX - this.bossX) || 1;
-          this.bossX += dir * 380 * dt;       // чуть медленнее (было 420)
-          this.bossX = Math.max(120, Math.min(W - 120, this.bossX));
-
-          const b = this.bossBox(), cb = this.catBox();
-          if (b.x < cb.x + cb.w && b.x + b.w > cb.x &&
-              b.y < cb.y + cb.h && b.y + b.h > cb.y) {
-            if (damage()) {
-              const away = Math.sign(this.bossX - this.catX) || 1;
-              this.bossX += away * 180;
-              this.bossX = Math.max(120, Math.min(W - 120, this.bossX));
-              this.catX -= away * 60;
-              this.catX = Math.max(52, Math.min(W - 52, this.catX));
-            }
-          }
-        } else {
-          // медленно возвращается в центр и замирает
-          this.bossX += (480 - this.bossX) * Math.min(1, dt * 2.2);
-        }
-
-        if (this.angry <= 0 && this.pt > 26) {
-          this.pt = 0;
-        }
-      }
-
-      // --- плавная вертикальная позиция ---
-      let targetY;
-      if (this.phase === 1) {
-        targetY = (this.biteState === 'lunge' || this.biteState === 'back') ? 400 : this.bossY;
-      } else if (this.phase === 2) {
-        targetY = 330;
-      } else {
-        targetY = this.angry > 0 ? 330 : 250;
-      }
-      this.dy += (targetY - this.dy) * Math.min(1, dt * 9);
+      // =====================================================================
+      //   ЗДЕСЬ БУДЕТ ЛОГИКА АТАК БИЛЕТА В ТЕКУЩЕЙ ФАЗЕ
+      //   Например:
+      //     if (this.phase === 1) { билет кидает чернильные кляксы }
+      //     if (this.phase === 2) { билет гоняется за котом }
+      //     if (this.phase === 3) { билет стреляет веером }
+      // =====================================================================
     },
 
+    /* ===================== DRAW ===================== */
     draw: function (c) {
+      // фон
       drawBackground(c, 'bg_classroom', '#0c1024', '#05070f');
+      c.fillStyle = 'rgba(8, 12, 26, 0.5)';
+      c.fillRect(0, 0, W, H);
 
+      // пол
       c.fillStyle = '#101733';
       c.fillRect(0, this.GROUND, W, H - this.GROUND);
       c.fillStyle = '#1b2450';
       c.fillRect(0, this.GROUND, W, 6);
 
-      // --- предупреждение о укусе (фаза 1) ---
-      if (this.phase === 1 && this.biteState === 'tell') {
-        const a = 0.35 + 0.35 * Math.abs(Math.sin(this.t * 18));
-        c.fillStyle = 'rgba(255,60,80,' + a + ')';
-        c.beginPath();
-        c.ellipse(this.biteX, this.GROUND + 4, 100, 20, 0, 0, 7); c.fill();
-        c.fillStyle = 'rgba(255,60,80,' + (a * 0.5) + ')';
-        c.fillRect(this.biteX - 3, 90, 6, this.GROUND - 90);
+      // ================= ВРАГ: БИЛЕТ =================
+      this.drawEnemy(c);
+
+      // ================= HP билета =================
+      this.drawEnemyHP(c);
+
+      // ================= КОТ =================
+      this.drawCat(c);
+
+      // ================= HUD фазы =================
+      c.fillStyle = '#9fb6ff';
+      c.font = '15px Verdana';
+      c.textAlign = 'center';
+      c.fillText('БИТВА С БИЛЕТОМ № ' + this.phase + '   (' + this.phase + ' / 3)', W / 2, 82);
+
+      c.fillStyle = '#7ff0ff';
+      c.font = 'bold 13px "PixelText", Verdana';
+      c.fillText('[ ЗАГЛУШКА: механика боя билета № ' + this.phase + ' ]', W / 2, 106);
+      c.textAlign = 'left';
+
+      // ================= ПОДСКАЗКА =================
+      if (this.hintT > 0) {
+        drawBottomHint(c, 'Стрелки — бег, Пробел — прыжок', this.hintT, '#ffb3c8');
       }
 
-      // --- телеграф рывка (фаза 2) ---
-      if (this.phase === 2 && this.dashWarn > 0) {
-        const k = 1 - this.dashWarn / 0.45;
-        const rad = 130 + 40 * k;
-        const a = 0.35 + 0.4 * Math.abs(Math.sin(this.t * 22));
-        c.strokeStyle = 'rgba(255,60,80,' + a + ')';
-        c.lineWidth = 5;
-        c.beginPath();
-        c.arc(this.bossX, this.dy, rad, 0, Math.PI * 2);
-        c.stroke();
-        // восклицательный знак над боссом
-        c.fillStyle = 'rgba(255,80,100,.95)';
-        c.font = 'bold 42px Verdana';
-        c.textAlign = 'center';
-        c.fillText('!', this.bossX, this.dy - 150);
-      }
+      // ================= ТРАНЗИШН =================
+      if (this.transT > 0) this.drawTransition(c);
 
-      // --- осколки смелости ---
-      for (let i = 0; i < this.frags.length; i++) {
-        const f = this.frags[i];
-        const fy = f.y - 24 + Math.sin(f.t * 3) * 6;
-        c.globalAlpha = Math.min(1, f.life / 2);
-        if (IMG['fragment']) c.drawImage(IMG['fragment'], f.x - 16, fy - 16, 32, 32);
-        else drawFragment(c, f.x, fy, this.t, 14, 1);
-        c.globalAlpha = 1;
-      }
+      drawHUD(c);
+    },
 
-      // --- босс ---
-      if (IMG['boss_grade']) {
-        c.drawImage(IMG['boss_grade'], this.bossX - 100, this.dy - 115, 200, 230);
+    /* ---------- отрисовка врага ---------- */
+    drawEnemy: function (c) {
+      const img = IMG['ticket_' + this.phase];
+      const hasImg = img && img.complete && img.naturalWidth > 0;
+
+      const bob = Math.sin(this.t * 1.6) * 8;
+
+      c.save();
+      c.translate(this.enemyX, this.enemyY + bob);
+      c.rotate(Math.sin(this.t * 0.8) * 0.05);
+
+      if (hasImg) {
+        c.drawImage(img, -70, -90, 140, 180);
       } else {
-        drawBoss(c, this.bossX, this.dy, this.t, this.bossHP,
-                 this.angry > 0, this.phase === 3 && this.angry <= 0);
+        // векторная заглушка
+        c.fillStyle = '#f2f0e6';
+        rr(c, -70, -90, 140, 180, 8); c.fill();
+        c.strokeStyle = '#8a3a3a';
+        c.lineWidth = 4;
+        rr(c, -70, -90, 140, 180, 8); c.stroke();
+
+        c.fillStyle = '#7a1f2b';
+        c.fillRect(-58, -78, 116, 30);
+
+        c.fillStyle = '#ffffff';
+        c.font = 'bold 16px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('№ ' + this.phase, 0, -63);
+
+        c.strokeStyle = 'rgba(60,40,40,0.35)';
+        c.lineWidth = 2;
+        for (let i = 0; i < 5; i++) {
+          c.beginPath();
+          c.moveTo(-54, -30 + i * 22);
+          c.lineTo(54, -30 + i * 22);
+          c.stroke();
+        }
+
+        // глаза
+        c.fillStyle = '#1a1c2c';
+        c.beginPath(); c.arc(-18, -40, 4, 0, 7); c.fill();
+        c.beginPath(); c.arc(18, -40, 4, 0, 7); c.fill();
+
+        // рот
+        c.strokeStyle = '#3a0d14';
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(0, -20, 14, 0.15 * Math.PI, 0.85 * Math.PI);
+        c.stroke();
+
+        c.fillStyle = 'rgba(120,60,60,0.55)';
+        c.font = 'italic 10px "PixelText", Verdana';
+        c.fillText('[ заглушка билета ]', 0, 78);
+        c.textBaseline = 'alphabetic';
       }
 
-      // --- полоска HP босса ---
+      c.restore();
+    },
+
+    /* ---------- полоска HP врага ---------- */
+    drawEnemyHP: function (c) {
       const bw = 260;
       c.fillStyle = 'rgba(255,255,255,.14)';
-      rr(c, W / 2 - bw / 2, 84, bw, 14, 7); c.fill();
+      rr(c, W / 2 - bw / 2, 132, bw, 14, 7); c.fill();
+
       const g = c.createLinearGradient(W / 2 - bw / 2, 0, W / 2 + bw / 2, 0);
       g.addColorStop(0, '#b3122a');
       g.addColorStop(1, '#ff6b8a');
       c.fillStyle = g;
-      rr(c, W / 2 - bw / 2, 84, bw * (this.bossHP / 3), 14, 7); c.fill();
+      rr(c, W / 2 - bw / 2, 132, bw * (this.enemyHP / this.enemyMaxHP), 14, 7); c.fill();
+
       c.fillStyle = '#ffb3c8';
       c.font = 'bold 13px Verdana';
       c.textAlign = 'center';
-      c.fillText('ЗАЧЁТКА  ' + this.bossHP + ' / 3', W / 2, 112);
+      c.fillText('БИЛЕТ  ' + this.enemyHP + ' / ' + this.enemyMaxHP, W / 2, 160);
+      c.textAlign = 'left';
+    },
 
-      // --- фаза ---
-      c.fillStyle = '#9fb6ff';
-      c.font = '15px Verdana';
-      let phaseText = '';
-      if (this.phase === 1) phaseText = 'Фаза 1: она кусает! Уворачивайся.';
-      else if (this.phase === 2) phaseText = 'Фаза 2: гонится за тобой! Беги!';
-      else phaseText = 'Фаза 3: она замерла — КЛИКАЙ по ней!';
-      c.fillText(phaseText, W / 2, 132);
-
-      // --- бонус урона ---
-      let dmgBonus = 'Урон: 1';
-      if (getTotalFragments() >= 10) dmgBonus = 'Урон: 3 (всё сокрушит!)';
-      else if (getTotalFragments() >= 5) dmgBonus = 'Урон: 2 (мощно!)';
-      c.fillStyle = '#ffd873';
-      c.font = 'bold 14px Verdana';
-      c.fillText('◆ Осколков: ' + getTotalFragments() + '  —  ' + dmgBonus, W / 2, 154);
-
-      // --- частицы ---
-      for (let i = 0; i < this.particles.length; i++) {
-        const q = this.particles[i];
-        c.globalAlpha = Math.max(0, q.life / 0.7);
-        c.fillStyle = q.col;
-        c.beginPath(); c.arc(q.x, q.y, 4, 0, 7); c.fill();
-      }
-      c.globalAlpha = 1;
-
-      // --- всплывающий текст ---
-      for (let i = 0; i < this.floatText.length; i++) {
-        const t = this.floatText[i];
-        c.globalAlpha = Math.min(1, t.t);
-        c.fillStyle = t.col;
-        c.font = 'bold 26px Verdana';
-        c.textAlign = 'center';
-        c.fillText(t.text, t.x, t.y);
-      }
-      c.globalAlpha = 1;
-
-      // --- кот ---
+    /* ---------- отрисовка кота ---------- */
+    drawCat: function (c) {
+      const catY = this.GROUND - this.jy;
       const blink = (G.invuln > 0 && Math.floor(G.invuln * 12) % 2 === 0);
-      if (!blink) {
-        const catY = this.GROUND - this.jy;
-        let name = 'cat_idle';
-        if (!this.onGround) name = 'cat_jump';
-        else if (G.keys['ArrowLeft'] || G.keys['ArrowRight'] ||
-                G.keys['KeyA'] || G.keys['KeyD'] || this.targetX !== null) {
-          name = 'cat_run_sheet';
-        }
+      if (blink) return;
 
-        const flip = this.catFacing < 0;
+      const flip = this.catFacing < 0;
 
-        if (name === 'cat_run_sheet' && IMG['cat_run_sheet']) {
-          drawAnimated(c, IMG['cat_run_sheet'], this.catX - 45, catY - 92, 90, 92, flip, this.t, 10, 3);
-        } else if (!drawSprite(c, IMG[name], this.catX - 45, catY - 92, 90, 92, flip)) {
-          drawCat(c, this.catX, catY, 0.85, {
-            t: this.t, run: this.onGround ? 1 : 0, flip: flip, pose: 'sad'
-          });
-        }
+      if (!drawSprite(c, IMG['cat_idle'], this.catX - 40, catY - 78, 80, 78, flip)) {
+        drawCat(c, this.catX, catY, 0.78, { t: this.t, run: 0, flip: flip });
       }
+    },
 
-      if (this.hintT > 0) {
-        drawBottomHint(c, 'Стрелки — бег, Пробел — прыжок, клик — движение',
-                       this.hintT, '#ffb3c8');
-      }
-      drawHUD(c);
+    /* ===================== ТРАНЗИШН-ПЛАШКА ===================== */
+    drawTransition: function (c) {
+      const a = Math.min(1, this.transT * 1.6);
+      c.fillStyle = 'rgba(5,8,20,' + (a * 0.92) + ')';
+      c.fillRect(0, 0, W, H);
+
+      // рамка под будущую картинку
+      const bw = 380, bh = 180;
+      const bx = (W - bw) / 2;
+      const by = H / 2 - bh / 2 - 40;
+
+      c.strokeStyle = 'rgba(120,160,255,' + (a * 0.6) + ')';
+      c.lineWidth = 3;
+      c.setLineDash([8, 6]);
+      c.strokeRect(bx, by, bw, bh);
+      c.setLineDash([]);
+
+      c.fillStyle = 'rgba(120,160,255,' + (a * 0.55) + ')';
+      c.font = '14px "PixelText", Verdana';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('[ место для картинки фазы ]', W / 2, by + bh / 2);
+
+      c.fillStyle = '#cfe0ff';
+      c.font = 'bold 30px "PixelTitle", Verdana';
+      c.fillText(this.transText, W / 2, by + bh + 40);
+
+      c.textBaseline = 'alphabetic';
+      c.textAlign = 'left';
+    },
+
+    /* ===================== КОНЦОВКИ ===================== */
+    getFailStory: function () {
+      if (this.phase === 1) return STORY.level4_fail_p1;
+      if (this.phase === 2) return STORY.level4_fail_p2;
+      return STORY.level4_fail_p3;
     }
   };
 }
