@@ -967,18 +967,17 @@ const STORY = {
   ]},
 
   level2_mid: { slides: [
-    { label: 'Рюкзак за спиной.\nКот выскакивает на улицу.\nУтро. Холодный воздух.',
-      text: 'Рюкзак за спиной. Кот выскочил за дверь. Улица встретила его холодом и серым светом.' },
-    { label: 'Рюкзак за спиной.\nКот выскакивает на улицу.\nУтро. Холодный воздух.',
-      text: 'Где-то там, в конце квартала, — маршрутка. И она не будет ждать.' },
-    { label: 'Впереди — знакомая маршрутка.\nДвери захлопываются.\nКот не успел.',
-      text: 'Он добежал до остановки — и увидел, как двери маршрутки захлопнулись прямо перед носом.' },
-    { label: 'Впереди — знакомая маршрутка.\nДвери захлопываются.\nКот не успел.',
-      text: 'Водитель не оглянулся. Не остановился. Он просто уехал.' },
-    { label: 'Маршрутка уходит вперёд.\nКот рвётся следом.',
-      text: '«Стой!» — крикнул кот, но маршрутка уже уходила.' },
-    { label: 'Маршрутка уходит вперёд.\nКот рвётся следом.',
-      text: 'Догнать её будет нелегко. На пути — много препятствий. Он побежал.' }
+    { img: 'story_level2_1',
+      label: 'Рюкзак за спиной.\nКот выскакивает на улицу.\nУтро. Холодный воздух.',
+      text: 'Рюкзак за спиной. Кот выскочил за дверь. Улица встретила его холодом и серым светом. \n\nГде-то там, в конце квартала, — маршрутка. И она не будет ждать.' },
+
+    { img: 'story_level2_2',
+      label: 'Впереди — знакомая маршрутка.\nДвери захлопываются.\nКот не успел.',
+      text: 'Он добежал до остановки — и увидел, как двери маршрутки захлопнулись прямо перед носом. \n\nВодитель не оглянулся. Не остановился. Он просто уехал.' },
+      
+    { img: 'story_level2_3',
+      label: 'Маршрутка уходит вперёд.\nКот рвётся следом.',
+      text: '«Стой!» — крикнул кот, но маршрутка уже уходила. \n\nДогнать её будет нелегко. На пути — много препятствий. Он побежал.' }
   ]},
 
   level2_mid2: { slides: [
@@ -1164,7 +1163,7 @@ const IMG_NAMES = [
   'bg_room_night', 'bg_corridor', 'bg_street', 'bg_door',
   'bg_classroom', 'bg_morning', 'heart', 'fragment', 'backpack_puzzle','road',
   'traffic_light', 'crowd', 'plt',
-  'page_1', 'page_2', 'page_3', 'bg_catch','backpack',
+  'page_1', 'page_2', 'page_3', 'bg_catch','backpack', 'bg_subway',
   'item_notebook', 'item_apple', 'item_sandwich', 'item_pen', 'item_thermos',
   'item_sock', 'item_cup', 'item_joystick', 'item_slipper', 
 
@@ -1172,6 +1171,7 @@ const IMG_NAMES = [
   'story_intro_1', 'story_intro_2', 'story_intro_3', 'story_intro_4', 'story_intro_5', 'story_intro_6',
   'story_level1_1', 'story_level1_2', 'story_level1_3', 'story_level1_4',
   'level1_1', 'level1_2', 'level1_3',
+  'story_level2_1', 'story_level2_2', 'story_level2_3'
 ];
 const SND_NAMES = ['jump', 'collect', 'hurt', 'win', 'alarm',
                    'meow1', 'meow2', 'meow3',
@@ -4740,65 +4740,32 @@ skipPhase: function () {
         },
 
         drawSubway: function (c) {
-          // ===== 1. Фон: газон =====
-          if (IMG['bg_subway'] && IMG['bg_subway'].complete) {
-            c.drawImage(IMG['bg_subway'], 0, 0, W, H);
+          // ===== Фон тропа =====
+
+
+          // ===== Фон: медленный скролл с наложением =====
+          if (IMG['bg_subway'] && IMG['bg_subway'].complete &&
+              IMG['bg_subway'].naturalWidth > 0) {
+
+            const img = IMG['bg_subway'];
+            const drawW = W;    // 960
+            const drawH = H;    // 540
+
+            const SCROLL_SPEED = 0.3;    // фон едет медленнее препятствий
+            const OVERLAP = 20;           // на сколько пикселей копии заходят друг на друга
+
+            const scroll = Math.floor(this.subwayDist * SCROLL_SPEED) % drawH;
+
+            // Верхняя копия — растянута вниз на OVERLAP пикселей
+            c.drawImage(img, 0, scroll - drawH, drawW, drawH + OVERLAP);
+
+            // Нижняя копия — рисуется поверх, закрывает нахлёст
+            c.drawImage(img, 0, scroll, drawW, drawH);
+
           } else {
             c.fillStyle = '#4a7a3a';
             c.fillRect(0, 0, W, H);
-            // трава — текстура
-            c.fillStyle = 'rgba(0,0,0,0.08)';
-            for (let y = 0; y < H; y += 12) {
-              const ox = (y * 7) % 20;
-              c.fillRect(ox, y, 6, 2);
-              c.fillRect((ox + 30) % W, y, 6, 2);
-            }
           }
-
-          // ===== 2. Боковые декорации (деревья, кусты) =====
-          const cycle = 24 * 240;
-          for (let i = 0; i < this.subwayDecor.length; i++) {
-            const d = this.subwayDecor[i];
-            let dy = ((d.y + this.subwayDist) % cycle) - 200;
-            if (dy < -180 || dy > H + 180) continue;
-            const dx = d.side === 0 ? 90 + d.variant * 30 : W - 100 - d.variant * 30;
-            if (d.type === 'tree') this.drawTree(c, dx, dy, d.variant);
-            else this.drawBush(c, dx, dy);
-          }
-
-          // ===== 3. Дорога =====
-          c.fillStyle = '#c89858';
-          c.fillRect(this.SUBWAY_ROAD_LEFT, 0,
-                    this.SUBWAY_ROAD_RIGHT - this.SUBWAY_ROAD_LEFT, H);
-
-          // тёмная кромка у дороги
-          c.fillStyle = 'rgba(0,0,0,0.18)';
-          c.fillRect(this.SUBWAY_ROAD_LEFT, 0, 3, H);
-          c.fillRect(this.SUBWAY_ROAD_RIGHT - 3, 0, 3, H);
-
-          // текстура дороги — горизонтальные штрихи, скроллятся
-          c.strokeStyle = 'rgba(0,0,0,0.10)';
-          c.lineWidth = 2;
-          const scroll80 = this.subwayDist % 80;
-          for (let y = -scroll80; y < H; y += 80) {
-            c.beginPath();
-            c.moveTo(this.SUBWAY_ROAD_LEFT + 8, y);
-            c.lineTo(this.SUBWAY_ROAD_RIGHT - 8, y);
-            c.stroke();
-          }
-
-          // разделители полос — пунктирная вертикаль
-          c.strokeStyle = 'rgba(0,0,0,0.25)';
-          c.lineWidth = 2;
-          c.setLineDash([18, 20]);
-          for (let i = 1; i <= 2; i++) {
-            const x = this.SUBWAY_ROAD_LEFT + i * this.SUBWAY_LANE_W;
-            c.beginPath();
-            c.moveTo(x, 0);
-            c.lineTo(x, H);
-            c.stroke();
-          }
-          c.setLineDash([]);
 
           // ===== 4. Препятствия =====
           for (let i = 0; i < this.subwayObstacles.length; i++) {
