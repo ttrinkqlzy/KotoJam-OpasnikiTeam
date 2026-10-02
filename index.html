@@ -1994,11 +1994,17 @@ window.addEventListener('keydown', function (e) {
     }
   }
   if (e.code === 'ArrowUp' || e.code === 'ArrowDown' ||
-      e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-    e.preventDefault();
-    if (e.code === 'ArrowUp' && G.mode === 'game' && activeLevel &&
-        !G.paused && !G.menuPaused && activeLevel.jump) {
-      activeLevel.jump();
+    e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+  e.preventDefault();
+    if (G.mode === 'game' && activeLevel && !G.paused &&!G.menuPaused && !G.inStory) {
+    // хук для ритм-механики и подобного
+      if (typeof activeLevel.onArrowKey === 'function') {
+        activeLevel.onArrowKey(e.code);
+      }
+      // обычный прыжок (в ритм-фазе Level4 сам отключится)
+      if (e.code === 'ArrowUp' && activeLevel.jump) {
+        activeLevel.jump();
+      }
     }
   }
 }, { passive: false });
@@ -5681,78 +5687,87 @@ function Level3() {
   };
 }
 
-/* ============================================================
-   13. УРОВЕНЬ 4 — БОСС (бонус урона от осколков)
-   ============================================================ */
 
 /* ============================================================
-   13. УРОВЕНЬ 4 — ТРИ БИЛЕТА (битва)
+   13. УРОВЕНЬ 4 — ТРИ БИЛЕТА
+   Фаза 1: РИТМ-МИНИ-ИГРА (уклонение от билета)
+   Фазы 2-3: заглушки — вставьте свою механику
    ============================================================ */
    function Level4() {
   return {
     name: 'Три билета', subtitle: 'страх неизвестного',
 
     /* ===================== ОБЩЕЕ ===================== */
-    phase: 1,                       // 1, 2, 3
+    phase: 1,
     t: 0,
     hintT: 4,
     transT: 1.6,
     transText: 'ФАЗА 1: БИЛЕТ № 1',
     done: false,
 
-    /* ===================== ПОЛЕ БОЯ ===================== */
-    GROUND: 430,
-    catX: 300,
-    catY: 0,                        // вычисляется от GROUND
+    GROUND: 460,
+    catX: 150,
     catFacing: 1,
     jy: 0, vy: 0, onGround: true,
+    crouchT: 0,
+    dodgeT: 0,
+    dodgeDir: 0,
+    catOffsetX: 0,
 
-    /* ===================== БИЛЕТ-ВРАГ ===================== */
-    enemyX: 700,
-    enemyY: 260,
+    /* ===================== РИТМ (фаза 1) ===================== */
+    rhythmArrows: [],           // стрелки на дорожке
+    rhythmSpawnT: 0.8,
+    rhythmSpawnInterval: 0.95,  // интервал спавна, сек
+    rhythmTravelTime: 1.4,      // время долёта до кружка
+    rhythmTimeLeft: 15,         // длительность фазы, сек
+    rhythmCombo: 0,
+    rhythmFeedback: [],         // всплывающие «+N» и «МИМО»
+
+    /* ===================== БОСС (заглушки фаз 2-3) ===================== */
     enemyHP: 3,
     enemyMaxHP: 3,
-    enemyAngle: 0,
 
     /* ===================== ИНИЦИАЛИЗАЦИЯ ===================== */
     init: function () {
       this.phase = 1;
       this.t = 0;
-      this.hintT = 4;
       this.done = false;
-      this.catX = 300;
-      this.catFacing = 1;
-      this.jy = 0; this.vy = 0; this.onGround = true;
-
       this.startPhase(1);
-
       this.transT = 1.6;
       this.transText = 'ФАЗА 1: БИЛЕТ № 1';
     },
 
-    /* Запуск фазы N: сбрасывает врага и ставит его в начальные координаты */
     startPhase: function (n) {
       this.phase = n;
-      this.enemyMaxHP = 3;
-      this.enemyHP = 3;
-      this.enemyX = 700;
-      this.enemyY = 260;
-      this.enemyAngle = 0;
       this.done = false;
       this.jy = 0; this.vy = 0; this.onGround = true;
-      this.catX = 300;
+      this.catX = 150;
+      this.crouchT = 0;
+      this.dodgeT = 0;
+      this.catOffsetX = 0;
 
-      // здесь при желании можно задать разные параметры для разных билетов
-      if (n === 1) { /* настройки билета 1 */ }
-      if (n === 2) { /* настройки билета 2 */ }
-      if (n === 3) { /* настройки билета 3 */ }
+      if (n === 1) {
+        // РИТМ-МИНИ-ИГРА
+        this.rhythmArrows = [];
+        this.rhythmSpawnT = 0.8;
+        this.rhythmTimeLeft = 15;
+        this.rhythmCombo = 0;
+        this.rhythmFeedback = [];
+      } else {
+        // ЗАГЛУШКИ ДЛЯ ФАЗ 2-3
+        // Здесь потом будет своя механика для билета № 2 и № 3
+        this.enemyHP = 3;
+        this.enemyMaxHP = 3;
+      }
     },
 
     allowsDamage: function () { return true; },
     hasFragments: function () { return false; },
 
     progress: function () {
-      // 0 / 1 / 2 / 3 фазы + прогресс по HP внутри фазы
+      if (this.phase === 1) {
+        return 1 - this.rhythmTimeLeft / 15;
+      }
       const base = (this.phase - 1) / 3;
       const inPhase = 1 - (this.enemyHP / Math.max(1, this.enemyMaxHP));
       return Math.min(1, base + inPhase / 3);
@@ -5769,7 +5784,6 @@ function Level3() {
       this.nextPhase();
     },
 
-    /* ===================== ПЕРЕХОД К СЛЕДУЮЩЕЙ ФАЗЕ ===================== */
     nextPhase: function () {
       if (this.phase < 3) {
         this.startPhase(this.phase + 1);
@@ -5783,6 +5797,11 @@ function Level3() {
 
     /* ===================== ВВОД ===================== */
     jump: function () {
+      // В ритм-фазе кот прыгает сам, при уклонении.
+      // Игрок в фазе 1 не прыгает — только жмёт стрелки в такт.
+      if (this.phase === 1) return;
+
+      // Для фаз 2-3 — если понадобится прыжок
       if (this.onGround && !this.done) {
         this.onGround = false;
         this.vy = 900;
@@ -5790,25 +5809,114 @@ function Level3() {
       }
     },
 
+    onArrowKey: function (code) {
+      if (this.phase !== 1 || this.done) return;
+
+      const dirMap = {
+        'ArrowUp':    'up',
+        'ArrowDown':  'down',
+        'ArrowLeft':  'left',
+        'ArrowRight': 'right'
+      };
+      const dir = dirMap[code];
+      if (!dir) return;
+
+      this.rhythmJudge(dir);
+    },
+
     onPointerDown: function (x, y) {
-      if (this.done) return;
-
-      // =====================================================================
-      //   ЗДЕСЬ БУДЕТ ЛОГИКА АТАКИ ПО БИЛЕТУ
-      //   Пример: если клик попал по enemyX/enemyY — наносим урон:
-      //      this.enemyHP--; если 0 → this.nextPhase();
-      // =====================================================================
-
-      // Пока — временный «чит» для теста: клик по билету сразу убивает его.
-      const bx = this.enemyX - 70, by = this.enemyY - 90;
-      if (x >= bx && x <= bx + 140 && y >= by && y <= by + 180) {
-        this.enemyHP--;
-        if (this.enemyHP <= 0) this.nextPhase();
+      if (this.phase === 1) {
+        // На тач-устройствах — просто тап, направление не важно
+        this.rhythmJudge(null);
+        return;
       }
+      // ЗАГЛУШКА для фаз 2-3 — тут будет своя механика
     },
 
     onPointerMove: function (x, y) {},
     onPointerUp: function (x, y) {},
+
+    /* ===================== РИТМ-ЛОГИКА ===================== */
+    rhythmXForProgress: function (p) {
+      // progress: 0 → x=80, 1 → x=W/2, 2 → x=W-80
+      const spawnX = 80;
+      const hitX = W / 2;
+      const half = hitX - spawnX;
+      return hitX + (p - 1) * half;
+    },
+
+    rhythmJudge: function (dir) {
+      const WINDOW = 0.18;      // окно попадания по progress (±)
+
+      // ищем ближайшую необработанную стрелку в окне
+      let best = null;
+      let bestDist = Infinity;
+      for (let i = 0; i < this.rhythmArrows.length; i++) {
+        const a = this.rhythmArrows[i];
+        if (a.judged) continue;
+        const d = Math.abs(a.progress - 1);
+        if (d <= WINDOW && d < bestDist) {
+          bestDist = d;
+          best = a;
+        }
+      }
+
+      // нет стрелки в окне — просто игнорируем нажатие
+      if (!best) return;
+
+      // dir === null (тап) — не проверяем направление
+      if (dir === null || best.dir === dir) {
+        best.judged = true;
+        this.rhythmSuccess(best);
+      } else {
+        best.judged = true;
+        this.rhythmMiss(best);
+      }
+    },
+
+    rhythmSuccess: function (a) {
+      playSound('collect', 0.5);
+      this.rhythmCombo++;
+
+      this.rhythmFeedback.push({
+        text: '+' + this.rhythmCombo,
+        col: '#7ff0ff',
+        t: 0.5,
+        x: W / 2,
+        y: H - 200
+      });
+
+      // Уклонение кота в зависимости от направления стрелки
+      if (a.dir === 'up') {
+        if (this.onGround) {
+          this.onGround = false;
+          this.vy = 520;
+        }
+      } else if (a.dir === 'down') {
+        this.crouchT = 0.35;
+      } else if (a.dir === 'left') {
+        this.dodgeT = 0.3;
+        this.dodgeDir = -1;
+      } else if (a.dir === 'right') {
+        this.dodgeT = 0.3;
+        this.dodgeDir = 1;
+      }
+    },
+
+    rhythmMiss: function (a) {
+      playSound('hurt', 0.6);
+      this.rhythmCombo = 0;
+
+      this.rhythmFeedback.push({
+        text: 'МИМО',
+        col: '#ff5566',
+        t: 0.7,
+        x: W / 2,
+        y: H - 200
+      });
+
+      damage();
+    },
 
     /* ===================== UPDATE ===================== */
     update: function (dt) {
@@ -5819,35 +5927,80 @@ function Level3() {
 
       if (this.done) return;
 
-      // движение кота ← →
-      let dx = 0;
-      if (G.keys['ArrowLeft'] || G.keys['KeyA']) { dx -= 1; this.catFacing = -1; }
-      if (G.keys['ArrowRight'] || G.keys['KeyD']) { dx += 1; this.catFacing = 1; }
-      if (dx !== 0) this.catX += dx * 340 * dt;
-      this.catX = Math.max(52, Math.min(W - 52, this.catX));
-
-      // прыжок
+      // физика прыжка
       if (!this.onGround) {
         this.vy -= 2300 * dt;
         this.jy += this.vy * dt;
         if (this.jy <= 0) { this.jy = 0; this.vy = 0; this.onGround = true; }
       }
 
-      // вращение билета
-      this.enemyAngle += dt * 0.8;
+      // отложенные визуальные состояния
+      if (this.crouchT > 0) this.crouchT -= dt;
 
-      // =====================================================================
-      //   ЗДЕСЬ БУДЕТ ЛОГИКА АТАК БИЛЕТА В ТЕКУЩЕЙ ФАЗЕ
-      //   Например:
-      //     if (this.phase === 1) { билет кидает чернильные кляксы }
-      //     if (this.phase === 2) { билет гоняется за котом }
-      //     if (this.phase === 3) { билет стреляет веером }
-      // =====================================================================
+      if (this.dodgeT > 0) {
+        this.dodgeT -= dt;
+        const k = Math.max(0, this.dodgeT / 0.3);
+        this.catOffsetX = this.dodgeDir * 40 * k;
+      } else {
+        this.catOffsetX = 0;
+      }
+
+      if (this.phase === 1) this.updateRhythm(dt);
+      // Фазы 2-3 — ЗАГЛУШКИ, тут будет своя логика
+    },
+
+    updateRhythm: function (dt) {
+      // таймер фазы
+      this.rhythmTimeLeft -= dt;
+      if (this.rhythmTimeLeft <= 0) {
+        this.rhythmTimeLeft = 0;
+        this.rhythmArrows = [];
+        this.nextPhase();
+        return;
+      }
+
+      // спавн стрелок
+      this.rhythmSpawnT -= dt;
+      if (this.rhythmSpawnT <= 0) {
+        this.rhythmSpawnT = this.rhythmSpawnInterval;
+        const dirs = ['up', 'down', 'left', 'right'];
+        this.rhythmArrows.push({
+          dir: dirs[Math.floor(Math.random() * 4)],
+          progress: 0,
+          judged: false
+        });
+      }
+
+      // движение стрелок и авто-промах
+      const WINDOW = 0.18;
+      for (let i = this.rhythmArrows.length - 1; i >= 0; i--) {
+        const a = this.rhythmArrows[i];
+        a.progress += dt / this.rhythmTravelTime;
+
+        // стрелка ушла за окно без нажатия — промах
+        if (!a.judged && a.progress > 1 + WINDOW) {
+          a.judged = true;
+          this.rhythmMiss(a);
+          if (G.paused) return;
+        }
+
+        // удаление улетевших
+        if (a.progress > 1.55) {
+          this.rhythmArrows.splice(i, 1);
+        }
+      }
+
+      // всплывающие надписи
+      for (let i = this.rhythmFeedback.length - 1; i >= 0; i--) {
+        const f = this.rhythmFeedback[i];
+        f.t -= dt;
+        f.y -= 40 * dt;
+        if (f.t <= 0) this.rhythmFeedback.splice(i, 1);
+      }
     },
 
     /* ===================== DRAW ===================== */
     draw: function (c) {
-      // фон
       drawBackground(c, 'bg_classroom', '#0c1024', '#05070f');
       c.fillStyle = 'rgba(8, 12, 26, 0.5)';
       c.fillRect(0, 0, W, H);
@@ -5858,52 +6011,100 @@ function Level3() {
       c.fillStyle = '#1b2450';
       c.fillRect(0, this.GROUND, W, 6);
 
-      // ================= ВРАГ: БИЛЕТ =================
-      this.drawEnemy(c);
-
-      // ================= HP билета =================
-      this.drawEnemyHP(c);
-
-      // ================= КОТ =================
-      this.drawCat(c);
-
-      // ================= HUD фазы =================
-      c.fillStyle = '#9fb6ff';
-      c.font = '15px Verdana';
-      c.textAlign = 'center';
-      c.fillText('БИТВА С БИЛЕТОМ № ' + this.phase + '   (' + this.phase + ' / 3)', W / 2, 82);
-
-      c.fillStyle = '#7ff0ff';
-      c.font = 'bold 13px "PixelText", Verdana';
-      c.fillText('[ ЗАГЛУШКА: механика боя билета № ' + this.phase + ' ]', W / 2, 106);
-      c.textAlign = 'left';
-
-      // ================= ПОДСКАЗКА =================
-      if (this.hintT > 0) {
-        drawBottomHint(c, 'Стрелки — бег, Пробел — прыжок', this.hintT, '#ffb3c8');
+      if (this.phase === 1) {
+        this.drawRhythmPhase(c);
+      } else {
+        this.drawPhaseStub(c);
       }
 
-      // ================= ТРАНЗИШН =================
       if (this.transT > 0) this.drawTransition(c);
-
       drawHUD(c);
     },
 
-    /* ---------- отрисовка врага ---------- */
-    drawEnemy: function (c) {
-      const img = IMG['ticket_' + this.phase];
+    drawRhythmPhase: function (c) {
+      const img = IMG['ticket_1'];
       const hasImg = img && img.complete && img.naturalWidth > 0;
 
+      // летающий билет № 1 сверху
       const bob = Math.sin(this.t * 1.6) * 8;
+      const bx = W - 180;
+      const by = 200 + bob;
 
       c.save();
-      c.translate(this.enemyX, this.enemyY + bob);
+      c.translate(bx, by);
       c.rotate(Math.sin(this.t * 0.8) * 0.05);
 
       if (hasImg) {
         c.drawImage(img, -70, -90, 140, 180);
       } else {
-        // векторная заглушка
+        // векторный билет-заглушка
+        c.fillStyle = '#f2f0e6';
+        rr(c, -70, -90, 140, 180, 8); c.fill();
+        c.strokeStyle = '#8a3a3a';
+        c.lineWidth = 4;
+        rr(c, -70, -90, 140, 180, 8); c.stroke();
+
+        c.fillStyle = '#7a1f2b';
+        c.fillRect(-58, -78, 116, 30);
+
+        c.fillStyle = '#ffffff';
+        c.font = 'bold 16px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('№ 1', 0, -63);
+
+        // глаза и злая улыбка
+        c.fillStyle = '#1a1c2c';
+        c.beginPath(); c.arc(-18, -40, 4, 0, 7); c.fill();
+        c.beginPath(); c.arc(18, -40, 4, 0, 7); c.fill();
+
+        c.strokeStyle = '#3a0d14';
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(0, -20, 14, 0.15 * Math.PI, 0.85 * Math.PI);
+        c.stroke();
+
+        // формулы внутри
+        c.fillStyle = 'rgba(60,40,40,0.35)';
+        c.font = 'italic 10px Verdana';
+        c.fillText('a²+b²=c²', 0, 10);
+        c.fillText('F=m·a', 0, 30);
+        c.fillText('E=mc²', 0, 50);
+      }
+      c.restore();
+      c.textBaseline = 'alphabetic';
+      c.textAlign = 'left';
+
+      // кот
+      this.drawCatSimple(c);
+
+      // UI ритма
+      this.drawRhythmUI(c);
+
+      // заголовок и статистика
+      c.fillStyle = '#9fb6ff';
+      c.font = '15px Verdana';
+      c.textAlign = 'center';
+      c.fillText('БИТВА С БИЛЕТОМ № 1 — УКЛОНЯЙСЯ В ТАКТ', W / 2, 82);
+
+      c.fillStyle = '#ffd873';
+      c.font = 'bold 14px Verdana';
+      const timeLeft = Math.max(0, this.rhythmTimeLeft).toFixed(1);
+      c.fillText('Осталось: ' + timeLeft + ' с   •   Комбо: ' + this.rhythmCombo,
+                 W / 2, 106);
+      c.textAlign = 'left';
+    },
+
+    /* заглушки фаз 2-3 */
+    drawPhaseStub: function (c) {
+      const img = IMG['ticket_' + this.phase];
+      const hasImg = img && img.complete && img.naturalWidth > 0;
+
+      c.save();
+      c.translate(W - 180, 240);
+      if (hasImg) {
+        c.drawImage(img, -70, -90, 140, 180);
+      } else {
         c.fillStyle = '#f2f0e6';
         rr(c, -70, -90, 140, 180, 8); c.fill();
         c.strokeStyle = '#8a3a3a';
@@ -5918,39 +6119,14 @@ function Level3() {
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.fillText('№ ' + this.phase, 0, -63);
-
-        c.strokeStyle = 'rgba(60,40,40,0.35)';
-        c.lineWidth = 2;
-        for (let i = 0; i < 5; i++) {
-          c.beginPath();
-          c.moveTo(-54, -30 + i * 22);
-          c.lineTo(54, -30 + i * 22);
-          c.stroke();
-        }
-
-        // глаза
-        c.fillStyle = '#1a1c2c';
-        c.beginPath(); c.arc(-18, -40, 4, 0, 7); c.fill();
-        c.beginPath(); c.arc(18, -40, 4, 0, 7); c.fill();
-
-        // рот
-        c.strokeStyle = '#3a0d14';
-        c.lineWidth = 3;
-        c.beginPath();
-        c.arc(0, -20, 14, 0.15 * Math.PI, 0.85 * Math.PI);
-        c.stroke();
-
-        c.fillStyle = 'rgba(120,60,60,0.55)';
-        c.font = 'italic 10px "PixelText", Verdana';
-        c.fillText('[ заглушка билета ]', 0, 78);
-        c.textBaseline = 'alphabetic';
       }
-
       c.restore();
-    },
+      c.textBaseline = 'alphabetic';
+      c.textAlign = 'left';
 
-    /* ---------- полоска HP врага ---------- */
-    drawEnemyHP: function (c) {
+      this.drawCatSimple(c);
+
+      // полоска HP
       const bw = 260;
       c.fillStyle = 'rgba(255,255,255,.14)';
       rr(c, W / 2 - bw / 2, 132, bw, 14, 7); c.fill();
@@ -5965,29 +6141,141 @@ function Level3() {
       c.font = 'bold 13px Verdana';
       c.textAlign = 'center';
       c.fillText('БИЛЕТ  ' + this.enemyHP + ' / ' + this.enemyMaxHP, W / 2, 160);
+
+      c.fillStyle = '#7ff0ff';
+      c.font = 'bold 13px "PixelText", Verdana';
+      c.fillText('[ ЗАГЛУШКА: бой билета № ' + this.phase + ' ]', W / 2, 182);
       c.textAlign = 'left';
     },
 
-    /* ---------- отрисовка кота ---------- */
-    drawCat: function (c) {
+    /* общая отрисовка кота */
+    drawCatSimple: function (c) {
       const catY = this.GROUND - this.jy;
       const blink = (G.invuln > 0 && Math.floor(G.invuln * 12) % 2 === 0);
       if (blink) return;
 
       const flip = this.catFacing < 0;
+      const crouch = this.crouchT > 0;
+      const cw = 80;
+      const ch = crouch ? 55 : 78;
+      const cxo = this.catX + this.catOffsetX;
 
-      if (!drawSprite(c, IMG['cat_idle'], this.catX - 40, catY - 78, 80, 78, flip)) {
-        drawCat(c, this.catX, catY, 0.78, { t: this.t, run: 0, flip: flip });
-      }
+      // если есть спрайт — рисуем его
+      const spriteName = crouch ? 'cat_sad' : 'cat_idle';
+      if (drawSprite(c, IMG[spriteName], cxo - cw / 2, catY - ch, cw, ch, flip)) return;
+
+      // иначе — векторный кот
+      drawCat(c, cxo, catY, 0.78, { t: this.t, run: 0, flip: flip });
     },
 
-    /* ===================== ТРАНЗИШН-ПЛАШКА ===================== */
+    /* UI ритма: полоса, кружок, стрелки */
+    drawRhythmUI: function (c) {
+      const stripY = H - 78;
+      const stripH = 68;
+      const cy = stripY + stripH / 2;
+
+      // фон полосы
+      c.fillStyle = 'rgba(6,10,24,0.78)';
+      rr(c, 40, stripY, W - 80, stripH, 12); c.fill();
+      c.strokeStyle = 'rgba(120,160,255,0.35)';
+      c.lineWidth = 2;
+      rr(c, 40, stripY, W - 80, stripH, 12); c.stroke();
+
+      // пунктирная дорожка
+      c.strokeStyle = 'rgba(120,160,255,0.2)';
+      c.lineWidth = 2;
+      c.setLineDash([6, 6]);
+      c.beginPath();
+      c.moveTo(80, cy);
+      c.lineTo(W - 80, cy);
+      c.stroke();
+      c.setLineDash([]);
+
+      // кружок-цель
+      const cx = W / 2;
+      const pulse = 1 + Math.sin(this.t * 6) * 0.06;
+      const ringR = 32 * pulse;
+
+      c.fillStyle = 'rgba(115,240,247,0.12)';
+      c.beginPath(); c.arc(cx, cy, ringR, 0, 7); c.fill();
+
+      c.strokeStyle = '#7ff0ff';
+      c.lineWidth = 4;
+      c.beginPath(); c.arc(cx, cy, ringR, 0, 7); c.stroke();
+
+      c.strokeStyle = 'rgba(255,255,255,0.35)';
+      c.lineWidth = 1;
+      c.beginPath(); c.arc(cx, cy, ringR * 0.7, 0, 7); c.stroke();
+
+      // стрелки на дорожке
+      for (let i = 0; i < this.rhythmArrows.length; i++) {
+        const a = this.rhythmArrows[i];
+        if (a.progress > 1.5) continue;
+
+        const ax = this.rhythmXForProgress(a.progress);
+        const alpha = a.judged ? 0.25 : 1;
+        const inZone = Math.abs(a.progress - 1) < 0.18;
+
+        let col = '#cfe0ff';
+        if (a.judged) col = '#666';
+        else if (inZone) col = '#ffd873';
+
+        this.drawRhythmArrow(c, ax, cy, a.dir, 22, alpha, col);
+      }
+
+      // фидбэки
+      c.textAlign = 'center';
+      for (let i = 0; i < this.rhythmFeedback.length; i++) {
+        const f = this.rhythmFeedback[i];
+        c.globalAlpha = Math.min(1, f.t * 2);
+        c.fillStyle = f.col;
+        c.font = 'bold 26px "PixelTitle", Verdana';
+        c.fillText(f.text, f.x, f.y);
+      }
+      c.globalAlpha = 1;
+      c.textAlign = 'left';
+    },
+
+    /* одна стрелка-указатель */
+    drawRhythmArrow: function (c, x, y, dir, size, alpha, col) {
+      c.save();
+      c.globalAlpha = alpha;
+      c.translate(x, y);
+
+      c.fillStyle = col;
+      c.strokeStyle = '#0a0d18';
+      c.lineWidth = 3;
+
+      c.beginPath();
+      if (dir === 'up') {
+        c.moveTo(0, -size);
+        c.lineTo(size * 0.85, size * 0.6);
+        c.lineTo(-size * 0.85, size * 0.6);
+      } else if (dir === 'down') {
+        c.moveTo(0, size);
+        c.lineTo(size * 0.85, -size * 0.6);
+        c.lineTo(-size * 0.85, -size * 0.6);
+      } else if (dir === 'left') {
+        c.moveTo(-size, 0);
+        c.lineTo(size * 0.6, size * 0.85);
+        c.lineTo(size * 0.6, -size * 0.85);
+      } else {
+        c.moveTo(size, 0);
+        c.lineTo(-size * 0.6, size * 0.85);
+        c.lineTo(-size * 0.6, -size * 0.85);
+      }
+      c.closePath();
+      c.fill();
+      c.stroke();
+
+      c.restore();
+    },
+
     drawTransition: function (c) {
       const a = Math.min(1, this.transT * 1.6);
       c.fillStyle = 'rgba(5,8,20,' + (a * 0.92) + ')';
       c.fillRect(0, 0, W, H);
 
-      // рамка под будущую картинку
       const bw = 380, bh = 180;
       const bx = (W - bw) / 2;
       const by = H / 2 - bh / 2 - 40;
@@ -6012,7 +6300,6 @@ function Level3() {
       c.textAlign = 'left';
     },
 
-    /* ===================== КОНЦОВКИ ===================== */
     getFailStory: function () {
       if (this.phase === 1) return STORY.level4_fail_p1;
       if (this.phase === 2) return STORY.level4_fail_p2;
