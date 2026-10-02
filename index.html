@@ -1176,7 +1176,9 @@ const IMG_NAMES = [
 const SND_NAMES = ['jump', 'collect', 'hurt', 'win', 'alarm',
                    'meow1', 'meow2', 'meow3',
                    'tik1', 'tik2', 'tik3',
-                   'bgm', 'type'];
+                   'bgm', 'type',
+                   'knopka', 'perelist_1', 'perelist_2', 'perelist_vstavka',
+                   'perehod', 'cpoks', 'bonuska', 'ultra_win', 'run'];
 const IMG = {}, SND = {};
 const IMG_EXT = {};
 
@@ -1230,6 +1232,45 @@ function playSound(name, vol) {
 function playRandomMeow(vol) {
   const n = 1 + Math.floor(Math.random() * 3);   // 1, 2 или 3
   playSound('meow' + n, vol === undefined ? 0.5 : vol);
+}
+
+/** Случайный «тик» (tik1 / tik2 / tik3) */
+function playRandomTik(vol) {
+  const names = ['tik1', 'tik2', 'tik3'];
+  const n = names[Math.floor(Math.random() * names.length)];
+  playSound(n, vol === undefined ? 0.45 : vol);
+}
+
+/**
+ * Играет hurt.wav целиком, а когда он закончится —
+ * играет случайный meow (meow1/meow2/meow3).
+ * Используется во 2-м уровне (дорога и пробежка).
+ */
+function playHurtThenMeow(volHurt, volMeow) {
+  const src = SND['hurt'];
+  if (!src || G.volumeSfx <= 0) {
+    playRandomMeow(volMeow === undefined ? 0.5 : volMeow);
+    return;
+  }
+  try {
+    const h = new Audio(src.src);
+    h.volume = Math.max(0, Math.min(1,
+      (volHurt === undefined ? 0.7 : volHurt) * G.volumeSfx));
+    let done = false;
+    const onEnd = function () {
+      if (done) return;
+      done = true;
+      playRandomMeow(volMeow === undefined ? 0.5 : volMeow);
+    };
+    h.addEventListener('ended', onEnd, { once: true });
+    const p = h.play();
+    if (p && p.catch) p.catch(function () { onEnd(); });
+    // страховка, если 'ended' не сработает
+    const dur = (src.duration && isFinite(src.duration)) ? src.duration : 1.2;
+    setTimeout(onEnd, dur * 1000 + 100);
+  } catch (e) {
+    playRandomMeow(volMeow === undefined ? 0.5 : volMeow);
+  }
 }
 
 let bgmStarted = false;
@@ -1807,6 +1848,7 @@ function showWarning(title, text, color, cb) {
 }
 
 function closeWarning() {
+  playSound('knopka', 0.5);
   document.getElementById('warnOverlay').classList.remove('show');
   G.paused = false;
   const cb = warnCallback;
@@ -1832,7 +1874,7 @@ function showAchievement(a) {
   achEl.innerHTML = '<span class="ac-title">★ ' + a.name + '</span>' +
                     '<span class="ac-desc">' + a.desc + '</span>';
   achEl.classList.add('show');
-  playSound('win', 0.35);
+  playSound('bonuska', 0.5);
   clearTimeout(achTimer);
   achTimer = setTimeout(function () { achEl.classList.remove('show'); }, 3000);
 }
@@ -2081,13 +2123,17 @@ function damage() {
   const ph  = activeLevel ? (activeLevel.phase || 0) : 0;
 
   if (lvl === 2 && ph >= 2) {
-    // 2 уровень, фаза 2 (дорога) и фаза 3 (пробежка) — hurt
+    // 2 уровень, фаза 2 (дорога) и фаза 3 (пробежка):
+    // сначала hurt.wav, а когда закончится — случайный meow
+    playHurtThenMeow(0.7, 0.5);
+  } else if (lvl === 3) {
+    // 3 уровень, фаза 1 (вопросы) — hurt вместо meow
     playSound('hurt', 0.7);
   } else if (lvl === 4) {
-    // 4 уровень пока не трогаем — там своя атмосфера
+    // 4 уровень — своя атмосфера, оставляем hurt
     playSound('hurt', 0.7);
   } else {
-    // 1 уровень, 2 уровень фаза 1, 3 уровень — случайный meow
+    // 1 уровень и 2 уровень фаза 1 — случайный meow
     playRandomMeow(0.5);
   }
   // ------------------------------------
@@ -2880,6 +2926,7 @@ skipPhase: function () {
       const self = this;
       if (this.phase === 0) {
         if (this.sub < 2) {
+          playSound('perehod', 0.6);
           this.transT = 1.5;
           this.transText = 'ПАЗЛ ' + (this.sub + 2) + ' / 3';
           setTimeout(function () {
@@ -2889,6 +2936,7 @@ skipPhase: function () {
             self.transText = 'ФАЗА 1: НА СТОЛЕ';
           }, 1300);
         } else {
+          playSound('perehod', 0.6);
           this.transT = 1.5;
           this.transText = 'ФАЗА 1 ПРОЙДЕНА';
           setTimeout(function () {
@@ -2937,6 +2985,7 @@ skipPhase: function () {
         }
       } else if (this.phase === 1) {
         if (this.sub < 2) {
+          playSound('perehod', 0.6);
           this.transT = 1.5;
           this.transText = 'СЛОВО ' + (this.sub + 2) + ' / 3';
           setTimeout(function () {
@@ -2946,6 +2995,7 @@ skipPhase: function () {
             self.transText = 'ФАЗА 2: В ГОЛОВЕ';
           }, 1300);
         } else {
+          playSound('perehod', 0.6);
           this.transT = 1.5;
           this.transText = 'ФАЗА 2 ПРОЙДЕНА';
           setTimeout(function () {
@@ -2994,6 +3044,7 @@ skipPhase: function () {
         }
       } else {
         if (this.sub < 2) {
+          playSound('perehod', 0.6);
           this.transT = 1.5;
           this.transText = 'ФОРМУЛА ' + (this.sub + 2) + ' / 3';
           setTimeout(function () {
@@ -3003,6 +3054,7 @@ skipPhase: function () {
             self.transText = 'ФАЗА 3: ФОРМУЛЫ';
           }, 1300);
         } else {
+          // финал уровня — здесь специально НЕ играем perehod, дальше сработает win
           this.done = true;
           this.transT = 1.8;
           this.transText = 'УРОВЕНЬ ПРОЙДЕН';
@@ -3071,7 +3123,7 @@ skipPhase: function () {
             p.rot = 0;
             this.dragOff.x = x - p.cx;
             this.dragOff.y = y - p.cy;
-            playSound('jump', 0.3);
+            playSound(Math.random() < 0.5 ? 'perelist_1' : 'perelist_2', 0.45);
             return;
           }
         }
@@ -3131,8 +3183,7 @@ skipPhase: function () {
             this.dragging = e;
             this.dragOff.x = x - e.x;
             this.dragOff.y = y - e.y;
-            playSound('jump', 0.3);
-            playSound('tik3', 0.4);
+            playRandomTik(0.45);
             return;
           }
         }
@@ -3178,7 +3229,7 @@ skipPhase: function () {
             p.rot = 0;
             s.piece = p;
             p.slotIdx = s.idx;
-            playSound('collect', 0.5);
+            playSound('perelist_vstavka', 0.55);
             this.checkPuzzleWin();
             return;
           }
@@ -3215,7 +3266,7 @@ skipPhase: function () {
               e.placed = true;
               s.filled = true;
               this.formulaPlaced++;
-              playSound('collect', 0.6);
+              playSound('cpoks', 0.65);
               if (this.formulaPlaced >= this.formulaSlots.length) {
                 const self = this;
                 setTimeout(function () { self.goNext(); }, 500);
@@ -4192,6 +4243,8 @@ skipPhase: function () {
           G.hearts = 3;
           G.lostThisPhase = false;
 
+          playSound('perehod', 0.6);
+
           showStory(STORY.level2_mid2, function () {
             self.phase = 2;
             self.startSubway();
@@ -5158,7 +5211,7 @@ function Level3() {
       this.answerIsCorrect = (idx === q.correct);
 
       if (this.answerIsCorrect) {
-        playSound('collect', 0.6);
+        playSound('knopka', 0.6);
         this.msg = 'Верно!';
         this.msgCol = '#4fe0a0';
         this.msgT = 1.2;
@@ -5176,6 +5229,7 @@ function Level3() {
       this.answerFlash = 0;
       if (this.currentQ >= 3) {
         const self = this;
+        playSound('perehod', 0.7);
         this.transT = 1.5;
         this.transText = 'ОХРАННИК КИВАЕТ...';
         setTimeout(function () {
@@ -5261,7 +5315,7 @@ function Level3() {
     checkExit: function () {
       if (this.mazeWin > 0) return;
       if (this.catRow === this.exitRow && this.catCol === this.exitCol) {
-        playSound('win', 0.7);
+        playSound('perehod', 0.7);
         this.mazeWin = 0.01;
       }
     },
@@ -5344,6 +5398,8 @@ function Level3() {
       this.catRow = nr;
       this.catCol = nc;
       this.moveCooldown = 0.14;
+
+      playSound('run', 0.28);
 
       // осколки
       for (let i = 0; i < this.mazeFrags.length; i++) {
@@ -5842,7 +5898,7 @@ function Level3() {
     },
 
     rhythmSuccess: function (a) {
-      playSound('collect', 0.5);
+      playSound('knopka', 0.5);
       this.rhythmCombo++;
 
       this.rhythmFeedback.push({
@@ -6367,7 +6423,7 @@ function prepareEnd() {
   document.getElementById('endStat').textContent =
     'Осколков смелости собрано: ' + getTotalFragments() +
     '   •   Достижений: ' + G.achievements.length + ' / ' + ACH_DEFS.length;
-  playSound('win', 0.85);
+  playSound('ultra_win', 0.9);
 }
 function drawEnd(dt) {
   const c = ectx;
@@ -6562,7 +6618,7 @@ function updateMap()
 
     if (!locked) {
       el.addEventListener('click', function () {
-        playSound('collect', 0.4);
+        playSound('knopka', 0.5);
         goLevel(n, false);
       });
     }
