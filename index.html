@@ -1410,6 +1410,7 @@ const IMG_NAMES = [
   'page_1', 'page_2', 'page_3', 'bg_catch','backpack', 'bg_subway',
   'item_notebook', 'item_apple', 'item_sandwich', 'item_pen', 'item_thermos',
   'item_sock', 'item_cup', 'item_joystick', 'item_slipper', 
+  'cat_shoot', 'paper_bullet',
 
     // ----- Картинки для визуальной новеллы и фонов уровней -----
   'story_intro_1', 'story_intro_2', 'story_intro_3', 'story_intro_4', 'story_intro_5', 'story_intro_6',
@@ -6481,9 +6482,37 @@ function Level4() {
     rhythmCombo: 0,
     rhythmFeedback: [],         // всплывающие «+N» и «МИМО»
 
-    /* ===================== БОСС (заглушки фаз 2-3) ===================== */
-    enemyHP: 3,
-    enemyMaxHP: 3,
+
+    /* ===================== ФАЗА 3: БОЙ С БИЛЕТОМ ===================== */
+    p3CatX: 480,
+    p3CatY: 460,
+    p3JY: 0,
+    p3VY: 0,
+    p3OnGround: true,
+    p3Facing: 1,
+
+    p3BossX: 480,
+    p3BossY: 180,
+    p3BossVX: 120,
+    p3BossHP: 10,
+    p3BossMaxHP: 10,
+
+    p3BossStunned: false,
+    p3BossStunT: 0,           // сколько ещё стана (сек)
+    p3BossFlyT: 7,            // сколько осталось летать до стана
+    p3StunDuration: 2.5,      // длительность стана
+    p3FlyDuration: 7,         // длительность полёта
+
+    p3AOET: 1.2,              // таймер до следующей AOE
+    p3AOEs: [],               // активные AOE
+
+    p3Bullets: [],            // снаряды игрока
+    p3ShootCd: 0,             // кулдаун выстрела
+    SHOOT_COOLDOWN: 0.4,
+
+    p3Feedback: '',
+    p3FeedbackT: 0,
+
 
     /* ===================== ИНИЦИАЛИЗАЦИЯ ===================== */
     init: function () {
@@ -6516,9 +6545,31 @@ function Level4() {
         // ФАЗА 2: бросок формул
         this.startPhase2();
       } else {
-        // ЗАГЛУШКА ДЛЯ ФАЗЫ 3
-        this.enemyHP = 3;
-        this.enemyMaxHP = 3;
+        this.p3CatX = 480;
+        this.p3CatY = 460;
+        this.p3JY = 0;
+        this.p3VY = 0;
+        this.p3OnGround = true;
+        this.p3Facing = 1;
+
+        this.p3BossX = 480;
+        this.p3BossY = 180;
+        this.p3BossVX = 120;
+        this.p3BossHP = 10;
+        this.p3BossMaxHP = 10;
+
+        this.p3BossStunned = false;
+        this.p3BossStunT = 0;
+        this.p3BossFlyT = this.p3FlyDuration = 7;
+        this.p3StunDuration = 2.5;
+
+        this.p3AOET = 1.2;
+        this.p3AOEs = [];
+        this.p3Bullets = [];
+        this.p3ShootCd = 0;
+
+        this.p3Feedback = '';
+        this.p3FeedbackT = 0;
       }
     },
 
@@ -6663,16 +6714,21 @@ function Level4() {
     },
 
     /* ===================== ВВОД ===================== */
-    jump: function () {
+    jump: function () 
+    {
       // В ритм-фазе кот прыгает сам, при уклонении.
       // Игрок в фазе 1 не прыгает — только жмёт стрелки в такт.
       if (this.phase === 1) return;
 
-      // Для фаз 2-3 — если понадобится прыжок
-      if (this.onGround && !this.done) {
-        this.onGround = false;
-        this.vy = 900;
-        playSound('jump', 0.45);
+      if (this.phase === 3)// фаза 3 прыжок
+      {
+        if (this.p3OnGround) 
+        {
+          this.p3OnGround = false;
+          this.p3VY = 850;
+          playSound('jump', 0.45);
+        }
+        return;
       }
     },
 
@@ -6698,13 +6754,21 @@ function Level4() {
         return;
       }
 
+      if (this.phase === 3) 
+      {
+        this.p3Shoot();
+        return;
+      }
+
       if (this.phase === 2) {
         // Игрок потерял все сердца — ждём клика на «проснуться»
-        if (this.waitingForFail) {
+        if (this.waitingForFail) 
+        {
           this.waitingForFail = false;
           failPhase();
           return;
         }
+      
 
         const p = this.p2Projectile;
         if (!p || p.destroyed || p.impact) return;
@@ -6871,6 +6935,7 @@ function Level4() {
 
       if (this.phase === 1) this.updateRhythm(dt);
       else if (this.phase === 2) this.updatePhase2(dt);
+      else if (this.phase === 3) this.updatePhase3(dt);
     },
 
     /* ---------- обновление фазы 2 ---------- */
@@ -6994,6 +7059,170 @@ function Level4() {
       }
     },
 
+
+
+    /* фаза 3 update */
+    updatePhase3: function (dt) {
+      if (this.done) return;
+
+      if (this.p3FeedbackT > 0) this.p3FeedbackT -= dt;
+      if (this.p3ShootCd > 0) this.p3ShootCd -= dt;
+
+      // ======================== КОТ ========================
+      let dx = 0;
+      if (G.keys['ArrowLeft'] || G.keys['KeyA'])  { dx -= 1; this.p3Facing = -1; }
+      if (G.keys['ArrowRight'] || G.keys['KeyD']) { dx += 1; this.p3Facing = 1; }
+
+      if (dx !== 0) this.p3CatX += dx * 340 * dt;
+      this.p3CatX = Math.max(50, Math.min(W - 50, this.p3CatX));
+
+      if (!this.p3OnGround) {
+        this.p3VY -= 2300 * dt;
+        this.p3JY += this.p3VY * dt;
+        if (this.p3JY <= 0) { this.p3JY = 0; this.p3VY = 0; this.p3OnGround = true; }
+      }
+
+      // ======================== БОСС ========================
+      // летает влево-вправо в верхней части
+      this.p3BossX += this.p3BossVX * dt;
+      if (this.p3BossX < 140) { this.p3BossX = 140; this.p3BossVX *= -1; }
+      if (this.p3BossX > W - 140) { this.p3BossX = W - 140; this.p3BossVX *= -1; }
+
+      if (this.p3BossStunned) {
+        // стан
+        this.p3BossStunT -= dt;
+        if (this.p3BossStunT <= 0) {
+          this.p3BossStunned = false;
+          this.p3BossFlyT = this.p3FlyDuration;
+          this.p3Feedback = 'БИЛЕТ ПРИШЁЛ В СЕБЯ!';
+          this.p3FeedbackCol = '#ff5566';
+          this.p3FeedbackT = 1.0;
+        }
+      } else {
+        // фаза полёта и атак
+        this.p3BossFlyT -= dt;
+        if (this.p3BossFlyT <= 0) {
+          this.p3BossStunned = true;
+          this.p3BossStunT = this.p3StunDuration;
+          this.p3AOEs = [];   // очищаем атаки
+          this.p3Feedback = 'СТАН! СТРЕЛЯЙ!';
+          this.p3FeedbackCol = '#ffd873';
+          this.p3FeedbackT = 1.0;
+          playSound('win', 0.5);
+        } else {
+          // спавн AOE
+          this.p3AOET -= dt;
+          if (this.p3AOET <= 0) {
+            this.p3AOET = 1.0 + Math.random() * 0.6;
+            this.p3AOEs.push({
+              x: 100 + Math.random() * (W - 200),
+              y: this.p3CatY,
+              warnT: 0.7,       // сколько светится до взрыва
+              boomT: 0.35,      // длительность взрыва
+              state: 'warn'
+            });
+          }
+        }
+      }
+
+      // ======================== AOE ========================
+      const catBox = {
+        x: this.p3CatX - 26,
+        y: this.p3CatY - this.p3JY - 60,
+        w: 52,
+        h: 70
+      };
+
+      for (let i = this.p3AOEs.length - 1; i >= 0; i--) {
+        const a = this.p3AOEs[i];
+
+        if (a.state === 'warn') {
+          a.warnT -= dt;
+          if (a.warnT <= 0) {
+            a.state = 'boom';
+            // проверка удара
+            const r = 90;
+            const acx = a.x;
+            const acy = a.y - 30;
+            const ccx = catBox.x + catBox.w / 2;
+            const ccy = catBox.y + catBox.h / 2;
+            const dd = Math.sqrt((acx - ccx) * (acx - ccx) + (acy - ccy) * (acy - ccy));
+            if (dd < r + 30) {
+              damage();
+              if (G.paused) return;
+            }
+          }
+        } else {
+          a.boomT -= dt;
+          if (a.boomT <= 0) this.p3AOEs.splice(i, 1);
+        }
+      }
+
+      // ======================== СНАРЯДЫ ========================
+      for (let i = this.p3Bullets.length - 1; i >= 0; i--) {
+        const b = this.p3Bullets[i];
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+
+        // столкновение с боссом — только в стане
+        if (this.p3BossStunned) {
+          const bossR = 70;
+          const dxb = b.x - this.p3BossX;
+          const dyb = b.y - this.p3BossY;
+          if (dxb * dxb + dyb * dyb < bossR * bossR) {
+            this.p3Bullets.splice(i, 1);
+            this.p3BossHP--;
+            playSound('hurt', 0.5);
+            this.p3Feedback = '−1';
+            this.p3FeedbackCol = '#ffd873';
+            this.p3FeedbackT = 0.4;
+
+            if (this.p3BossHP <= 0) {
+              this.p3BossHP = 0;
+              this.done = true;
+              playSound('win', 0.9);
+              const self = this;
+              setTimeout(function () { levelComplete(); }, 900);
+              return;
+            }
+            continue;
+          }
+        }
+
+        if (b.x < -50 || b.x > W + 50 || b.y < -50 || b.y > H + 50) {
+          this.p3Bullets.splice(i, 1);
+        }
+      }
+    },
+
+
+    p3Shoot: function () {
+      if (this.phase !== 3 || this.done) return;
+      if (this.p3ShootCd > 0) return;
+
+      this.p3ShootCd = this.SHOOT_COOLDOWN;
+
+      // стреляем от кота к боссу
+      const startX = this.p3CatX;
+      const startY = this.p3CatY - this.p3JY - 50;
+
+      const dx = this.p3BossX - startX;
+      const dy = this.p3BossY - startY;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const speed = 700;
+
+      this.p3Bullets.push({
+        x: startX,
+        y: startY,
+        vx: (dx / len) * speed,
+        vy: (dy / len) * speed,
+        rot: 0
+      });
+
+      playSound('jump', 0.35);
+    },
+
+
     /* ===================== DRAW ===================== */
     draw: function (c) {
       drawBackground(c, 'bg_classroom', '#0c1024', '#05070f');
@@ -7006,11 +7235,20 @@ function Level4() {
       c.fillStyle = '#1b2450';
       c.fillRect(0, this.GROUND, W, 6);
 
-      if (this.phase === 1) {
+      if (this.phase === 1) 
+      {
         this.drawRhythmPhase(c);
-      } else if (this.phase === 2) {
+      } 
+      else if (this.phase === 2) 
+      {
         this.drawPhase2(c);
-      } else {
+      } 
+      else if (this.phase === 3) 
+      {
+        this.drawPhase3(c);
+      }
+      else 
+      {
         this.drawPhaseStub(c);
       }
 
@@ -7124,6 +7362,173 @@ function Level4() {
                        this.hintT, '#7ff0ff');
       }
       c.textAlign = 'left';
+    },
+
+
+    // отрисовка фазы 3
+    drawPhase3: function (c) {
+      // фон и пол
+      drawBackground(c, 'bg_classroom', '#0c1024', '#05070f');
+      c.fillStyle = 'rgba(8, 12, 26, 0.5)';
+      c.fillRect(0, 0, W, H);
+
+      c.fillStyle = '#101733';
+      c.fillRect(0, this.p3CatY, W, H - this.p3CatY);
+      c.fillStyle = '#1b2450';
+      c.fillRect(0, this.p3CatY, W, 6);
+
+      // ================= AOE =================
+      for (let i = 0; i < this.p3AOEs.length; i++) {
+        const a = this.p3AOEs[i];
+        if (a.state === 'warn') {
+          const k = 1 - a.warnT / 0.7;
+          const r = 30 + 60 * k;
+          c.strokeStyle = 'rgba(255,60,80,' + (0.4 + 0.5 * Math.abs(Math.sin(this.t * 20))) + ')';
+          c.lineWidth = 4;
+          c.beginPath();
+          c.arc(a.x, a.y - 30, r, 0, 7);
+          c.stroke();
+          c.fillStyle = 'rgba(255,60,80,0.15)';
+          c.beginPath();
+          c.arc(a.x, a.y - 30, r, 0, 7);
+          c.fill();
+        } else {
+          const k = Math.max(0, a.boomT / 0.35);
+          const r = 90 * (1.1 - k * 0.6);
+          c.fillStyle = 'rgba(255,150,50,' + (k * 0.7) + ')';
+          c.beginPath();
+          c.arc(a.x, a.y - 30, r, 0, 7);
+          c.fill();
+          c.fillStyle = 'rgba(255,240,150,' + (k * 0.9) + ')';
+          c.beginPath();
+          c.arc(a.x, a.y - 30, r * 0.6, 0, 7);
+          c.fill();
+        }
+      }
+
+      // ================= БОСС =================
+      const bossImg = IMG['ticket_3'];
+      const hasBossImg = bossImg && bossImg.complete && bossImg.naturalWidth > 0;
+      const bob = this.p3BossStunned ? 0 : Math.sin(this.t * 2) * 8;
+
+      c.save();
+      c.translate(this.p3BossX, this.p3BossY + bob);
+      if (this.p3BossStunned) {
+        c.rotate(Math.sin(this.t * 12) * 0.08);
+      } else {
+        c.rotate(Math.sin(this.t * 1.4) * 0.06);
+      }
+
+      if (hasBossImg) {
+        c.drawImage(bossImg, -70, -90, 140, 180);
+      } else {
+        c.fillStyle = '#f2f0e6';
+        rr(c, -70, -90, 140, 180, 8); c.fill();
+        c.strokeStyle = this.p3BossStunned ? '#7ff0ff' : '#8a3a3a';
+        c.lineWidth = this.p3BossStunned ? 5 : 4;
+        rr(c, -70, -90, 140, 180, 8); c.stroke();
+
+        c.fillStyle = '#7a1f2b';
+        c.fillRect(-58, -78, 116, 30);
+
+        c.fillStyle = '#ffffff';
+        c.font = 'bold 16px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('№ 3', 0, -63);
+
+        c.fillStyle = '#1a1c2c';
+        c.beginPath(); c.arc(-18, -40, 4, 0, 7); c.fill();
+        c.beginPath(); c.arc(18, -40, 4, 0, 7); c.fill();
+
+        c.strokeStyle = '#3a0d14';
+        c.lineWidth = 3;
+        c.beginPath();
+        if (this.p3BossStunned) {
+          // оглушённая улыбка
+          c.arc(0, -20, 14, 0.15 * Math.PI, 0.85 * Math.PI);
+        } else {
+          c.arc(0, -10, 14, 1.15 * Math.PI, 1.85 * Math.PI);
+        }
+        c.stroke();
+      }
+      c.restore();
+      c.textBaseline = 'alphabetic';
+
+      // ================= СНАРЯДЫ =================
+      for (let i = 0; i < this.p3Bullets.length; i++) {
+        const b = this.p3Bullets[i];
+        if (IMG['paper_bullet'] && IMG['paper_bullet'].complete) {
+          c.drawImage(IMG['paper_bullet'], b.x - 12, b.y - 12, 24, 24);
+        } else {
+          c.fillStyle = '#f4f4f4';
+          c.beginPath(); c.arc(b.x, b.y, 10, 0, 7); c.fill();
+          c.strokeStyle = '#8a8a8a';
+          c.lineWidth = 1.5;
+          c.beginPath(); c.arc(b.x, b.y, 10, 0, 7); c.stroke();
+          c.fillStyle = '#c0c0c0';
+          c.fillRect(b.x - 6, b.y - 2, 4, 1);
+          c.fillRect(b.x - 2, b.y + 3, 5, 1);
+        }
+      }
+
+      // ================= КОТ =================
+      const catY = this.p3CatY - this.p3JY;
+      const blink = (G.invuln > 0 && Math.floor(G.invuln * 12) % 2 === 0);
+      if (!blink) {
+        const flip = this.p3Facing < 0;
+        if (!drawSprite(c, IMG['cat_shoot'], this.p3CatX - 40, catY - 78, 80, 78, flip)) {
+          if (!drawSprite(c, IMG['cat_idle'], this.p3CatX - 40, catY - 78, 80, 78, flip)) {
+            drawCat(c, this.p3CatX, catY, 0.78, { t: this.t, flip: flip });
+          }
+        }
+      }
+
+      // ================= HUD =================
+      // HP босса
+      const bw = 320;
+      c.fillStyle = 'rgba(255,255,255,.14)';
+      rr(c, W / 2 - bw / 2, 74, bw, 14, 7); c.fill();
+
+      const gg = c.createLinearGradient(W / 2 - bw / 2, 0, W / 2 + bw / 2, 0);
+      gg.addColorStop(0, '#b3122a');
+      gg.addColorStop(1, '#ff6b8a');
+      c.fillStyle = gg;
+      rr(c, W / 2 - bw / 2, 74, bw * (this.p3BossHP / this.p3BossMaxHP), 14, 7); c.fill();
+
+      c.fillStyle = '#ffb3c8';
+      c.font = 'bold 13px Verdana';
+      c.textAlign = 'center';
+      c.fillText('БИЛЕТ № 3  ' + this.p3BossHP + ' / ' + this.p3BossMaxHP, W / 2, 108);
+
+      // статус
+      let statusText = '';
+      let statusCol = '#9fb6ff';
+      if (this.p3BossStunned) {
+        statusText = 'СТАН — СТРЕЛЯЙ!  ' + this.p3BossStunT.toFixed(1) + ' с';
+        statusCol = '#7ff0ff';
+      } else {
+        statusText = 'БИЛЕТ АТАКУЕТ — УКЛОНЯЙСЯ!  ' + this.p3BossFlyT.toFixed(1) + ' с';
+        statusCol = '#ffb3c8';
+      }
+      c.fillStyle = statusCol;
+      c.font = 'bold 15px "PixelText", Verdana';
+      c.fillText(statusText, W / 2, 132);
+
+      // фидбэк
+      if (this.p3FeedbackT > 0) {
+        c.globalAlpha = Math.min(1, this.p3FeedbackT * 2);
+        c.fillStyle = this.p3FeedbackCol;
+        c.font = 'bold 30px "PixelTitle", Verdana';
+        c.fillText(this.p3Feedback, W / 2, 190);
+        c.globalAlpha = 1;
+      }
+      c.textAlign = 'left';
+
+      if (this.hintT > 0) {
+        drawBottomHint(c, '← → бег, ПРОБЕЛ прыжок, ЛКМ — выстрел',
+                      this.hintT, '#7ff0ff');
+      }
     },
 
     drawFormulaOrb: function (c, f) {
