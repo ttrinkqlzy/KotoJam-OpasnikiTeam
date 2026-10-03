@@ -1232,13 +1232,17 @@ const STORY = {
   ]},
 
   level3: { slides: [
-    { label: 'Главный корпус. Турникет.\nКот хлопает по карманам.\nПропуска нет.',
-      text: 'Кот вбегает в главный корпус. Турникет. Очередь. Экзамен уже начался.' },
-    { label: 'Главный корпус. Турникет.\nКот хлопает по карманам.\nПропуска нет.',
+    { img: 'story_level3_1',
+      label: 'Главный корпус. Турникет.\nКот хлопает по карманам.\nПропуска нет.',
+      text: 'Кот вбегает в главный корпус. Турникеты, заскучавший охранник. Экзамен уже начался.' },
+    { img: 'story_level3_1',
+      label: 'Главный корпус. Турникет.\nКот хлопает по карманам.\nПропуска нет.',
       text: 'Пропуска нет. Ни студенческого, ни паспорта.' },
-    { label: 'Охранник строго смотрит\nповерх очков.',
+    { img: 'story_level3_1',
+      label: 'Охранник строго смотрит\nповерх очков.',
       text: '«Забыл пропуск? Знаем мы таких. Ответишь на три вопроса про ТюмГУ — пропущу. Не ответишь — извини.»' },
-    { label: 'Кот глубоко вздыхает.\nТри вопроса. Три сердца.',
+    { img: 'story_level3_1',
+      label: 'Кот глубоко вздыхает.\nТри вопроса. Три сердца.',
       text: 'Кот глубоко вздыхает. Три вопроса. На размышление — секунды.' }
   ]},
 
@@ -1409,7 +1413,8 @@ const IMG_NAMES = [
   'story_intro_1', 'story_intro_2', 'story_intro_3', 'story_intro_4', 'story_intro_5', 'story_intro_6',
   'story_level1_1', 'story_level1_2', 'story_level1_3', 'story_level1_4',
   'level1_1', 'level1_2', 'level1_3',
-  'story_level2_1', 'story_level2_2', 'story_level2_3'
+  'story_level2_1', 'story_level2_2', 'story_level2_3',
+  'story_level3_1', 'level3_1', 'level3_2', 'level3_3'
 ];
 const SND_NAMES = ['jump', 'collect', 'hurt', 'win', 'alarm',
                    'meow1', 'meow2', 'meow3',
@@ -6024,9 +6029,9 @@ function Level3() {
 
     /* ---------- ВОПРОСЫ ---------- */
     drawQuestions: function (c) {
-      drawBackground(c, 'bg_corridor', '#0a1024', '#05080f');
+      drawBackground(c, 'level3_1', '#0a1024', '#05080f');
 
-      // затемнение под картинку-фон (потом подставишь свою)
+      // затемнение поверх картинки, чтобы текст вопроса читался
       const g = c.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, 'rgba(0,0,0,0.55)');
       g.addColorStop(1, 'rgba(0,0,0,0.85)');
@@ -6324,13 +6329,40 @@ function Level3() {
     /* ---------- ОБЩЕЕ ---------- */
     drawTransition: function (c) {
       const a = Math.min(1, this.transT * 1.6);
-      c.fillStyle = 'rgba(5,8,20,' + (a * 0.9) + ')';
-      c.fillRect(0, 0, W, H);
+
+      // Выбираем фоновую картинку по номеру этажа, на который идёт переход:
+      //   curFloor === 1 → переходим на 2 этаж → level3_2
+      //   curFloor === 2 → переходим на 3 этаж → level3_3
+      let bgName = null;
+      if (this.curFloor === 1) bgName = 'level3_2';
+      else if (this.curFloor === 2) bgName = 'level3_3';
+
+      // 1) фон
+      if (bgName && IMG[bgName] && IMG[bgName].complete && IMG[bgName].naturalWidth > 0) {
+        c.drawImage(IMG[bgName], 0, 0, W, H);
+        // поверх картинки — затемнение (чуть светлее обычного, чтобы картинку было видно)
+        c.fillStyle = 'rgba(5,8,20,' + (a * 0.55) + ')';
+        c.fillRect(0, 0, W, H);
+      } else {
+        // Если картинки нет или при первом заходе на этаж — обычное чёрное затемнение
+        c.fillStyle = 'rgba(5,8,20,' + (a * 0.9) + ')';
+        c.fillRect(0, 0, W, H);
+      }
+
+      // 2) тёмная плашка под текст — чтобы надпись читалась на любом фоне
+      c.fillStyle = 'rgba(5,8,20,0.70)';
+      const tw = 520;
+      rr(c, W / 2 - tw / 2, H / 2 - 34, tw, 68, 12); c.fill();
+      c.strokeStyle = 'rgba(115,240,247,0.45)';
+      c.lineWidth = 2;
+      rr(c, W / 2 - tw / 2, H / 2 - 34, tw, 68, 12); c.stroke();
+
+      // 3) сам текст
       c.fillStyle = '#cfe0ff';
       c.font = 'bold 30px "PixelTitle", Verdana';
       c.textAlign = 'center';
       c.textBaseline = 'middle';
-      c.fillText(this.transText, W / 2, H / 2);
+      c.fillText(this.transText, W / 2, H / 2 + 2);
       c.textBaseline = 'alphabetic';
     }
   };
