@@ -6372,9 +6372,35 @@ function Level3() {
 /* ============================================================
    13. УРОВЕНЬ 4 — ТРИ БИЛЕТА
    Фаза 1: РИТМ-МИНИ-ИГРА (уклонение от билета)
-   Фазы 2-3: заглушки — вставьте свою механику
+   Фаза 2: БРОСОК ФОРМУЛ (отбей вопрос правильной формулой)
+   Фаза 3: заглушка — вставьте свою механику
    ============================================================ */
-   function Level4() {
+
+/* Банк формул для фазы 2 уровня 4.
+   Каждый вопрос: текст (название или описание) + правильная
+   формула + 4 «путаницы», из которых 3 идут в раунд.
+
+   Формулы специально взяты из 1 уровня («Конспект») — чтобы
+   игрок, прошедший игру подряд, узнавал их с полувзгляда. */
+const LEVEL4_FORMULA_QUESTIONS = [
+  {
+    question: 'Второй закон Ньютона',
+    answer: 'F = m · a',
+    wrong: ['F = m · v', 'F = m / a', 'F = m + a', 'F = a / m']
+  },
+  {
+    question: 'Формула Эйнштейна',
+    answer: 'E = m · c²',
+    wrong: ['E = m · c', 'E = m² · c', 'E = m / c²', 'E = m + c²']
+  },
+  {
+    question: 'Теорема Пифагора',
+    answer: 'a² + b² = c²',
+    wrong: ['a² + b² = c', 'a + b = c', 'a² − b² = c²', 'a · b = c²']
+  }
+];
+
+function Level4() {
   return {
     name: 'Три билета', subtitle: 'страх неизвестного',
 
@@ -6426,6 +6452,7 @@ function Level3() {
       this.crouchT = 0;
       this.dodgeT = 0;
       this.catOffsetX = 0;
+      this.waitingForFail = false;
 
       if (n === 1) {
         // РИТМ-МИНИ-ИГРА
@@ -6434,11 +6461,119 @@ function Level3() {
         this.rhythmTimeLeft = 15;
         this.rhythmCombo = 0;
         this.rhythmFeedback = [];
+      } else if (n === 2) {
+        // ФАЗА 2: бросок формул
+        this.startPhase2();
       } else {
-        // ЗАГЛУШКИ ДЛЯ ФАЗ 2-3
-        // Здесь потом будет своя механика для билета № 2 и № 3
+        // ЗАГЛУШКА ДЛЯ ФАЗЫ 3
         this.enemyHP = 3;
         this.enemyMaxHP = 3;
+      }
+    },
+
+    /* ============================================================
+       ФАЗА 2: БРОСОК ФОРМУЛ
+       Билет кидает вопрос → летит ~3 сек → игрок кликает
+       правильную формулу из летающих вокруг кота «путаниц».
+       ============================================================ */
+    startPhase2: function () {
+      // Очередь из 3 вопросов на всю фазу
+      const pool = LEVEL4_FORMULA_QUESTIONS.slice();
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+      }
+      this.p2Queue = pool.slice(0, 3);
+      this.p2RoundIndex = 0;
+      this.p2Hits = 0;
+      this.p2Formulas = [];
+      this.p2Projectile = null;
+      this.p2CurrentQ = null;
+      this.p2Fx = [];
+      this.startPhase2Round();
+    },
+
+    startPhase2Round: function () {
+      const q = this.p2Queue[this.p2RoundIndex];
+      this.p2CurrentQ = q;
+
+      // Правильная + 3 случайные путаницы, перемешать
+      const wrongPool = q.wrong.slice();
+      for (let i = wrongPool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = wrongPool[i]; wrongPool[i] = wrongPool[j]; wrongPool[j] = t;
+      }
+      const picks = [{ text: q.answer, correct: true }];
+      for (let i = 0; i < 3; i++) {
+        picks.push({ text: wrongPool[i], correct: false });
+      }
+      for (let i = picks.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = picks[i]; picks[i] = picks[j]; picks[j] = t;
+      }
+
+      // Орбита вокруг кота — в левой половине экрана, над полом
+      const centerX = 300;
+      const centerY = this.GROUND - 150;
+      const radiusX = 170;
+      const radiusY = 100;
+
+      this.p2Formulas = picks.map(function (p, i) {
+        const baseAngle = (i / picks.length) * Math.PI * 2;
+        return {
+          text: p.text,
+          correct: p.correct,
+          angle: baseAngle,
+          angularSpeed: 0.25 + Math.random() * 0.20,
+          radiusX: radiusX + (Math.random() - 0.5) * 30,
+          radiusY: radiusY + (Math.random() - 0.5) * 20,
+          centerX: centerX,
+          centerY: centerY,
+          x: 0, y: 0,
+          w: 120, h: 44,       // ← стартовые размеры, пересчитаются при первом рендере
+          flash: 0,
+          flying: 0,
+          flyT: 0,
+          flyFromX: 0, flyFromY: 0,
+          flyToX: 0, flyToY: 0,
+          dead: false
+        };
+      });
+
+      // Снаряд-вопрос: сначала 2 секунды висит над билетом, потом летит
+      this.p2Projectile = {
+        state: 'charge',          // 'charge' | 'flying' | 'impact'
+        chargeT: 2.0,             // сколько секунд висит над билетом
+        chargeDuration: 2.0,
+        startX: W - 180,
+        startY: 100,
+        targetX: this.catX + 40,
+        targetY: this.GROUND - 60,
+        x: W - 180,
+        y: 100,
+        t: 0,
+        duration: 3.0,
+        destroyed: false,
+        wrongClicked: false,
+        impact: false
+      };
+    },
+
+    /* Если сердце ушло в 0 в фазе 2 — ждём клика на «проснуться» */
+    handleZeroHearts: function () {
+      if (this.phase === 2) {
+        this.waitingForFail = true;
+      } else {
+        failPhase();
+      }
+    },
+
+    nextPhase2Round: function () {
+      this.p2RoundIndex++;
+      if (this.p2RoundIndex >= 3) {
+        this.nextPhase();
+      } else {
+        this.startPhase2Round();
       }
     },
 
@@ -6511,7 +6646,64 @@ function Level3() {
         this.rhythmJudge(null);
         return;
       }
-      // ЗАГЛУШКА для фаз 2-3 — тут будет своя механика
+
+      if (this.phase === 2) {
+        // Игрок потерял все сердца — ждём клика на «проснуться»
+        if (this.waitingForFail) {
+          this.waitingForFail = false;
+          failPhase();
+          return;
+        }
+
+        const p = this.p2Projectile;
+        if (!p || p.destroyed || p.impact) return;
+
+        // Проверка попадания по формулам (клик по всей ширине плашки)
+        for (let i = 0; i < this.p2Formulas.length; i++) {
+          const f = this.p2Formulas[i];
+          if (f.dead || f.flying > 0) continue;
+          const hw = (f.w || 120) / 2;
+          const hh = (f.h || 44) / 2;
+          if (Math.abs(x - f.x) < hw && Math.abs(y - f.y) < hh) {
+            if (f.correct) {
+              // Правильная — запускаем в полёт к вопросу, вопрос разбивается
+              playSound('collect', 0.7);
+              f.flying = 0.01;
+              f.flyT = 0;
+              f.flyFromX = f.x;
+              f.flyFromY = f.y;
+              f.flyToX = p.x;
+              f.flyToY = p.y;
+
+              // Мгновенно помечаем вопрос как разбитый — защита от двойных кликов
+              p.destroyed = true;
+              this.p2Hits++;
+
+              this.p2Fx.push({
+                x: p.x, y: p.y, t: 0.8,
+                color: '#7ff0ff', text: '+1'
+              });
+
+              const self = this;
+              setTimeout(function () {
+                playSound('win', 0.5);
+                setTimeout(function () {
+                  if (self.phase !== 2 || self.done) return;
+                  if (self.waitingForFail) return;
+                  self.nextPhase2Round();
+                }, 500);
+              }, 200);
+            } else {
+              // Неправильная — сразу -1 сердце
+              f.flash = 0.5;
+              playSound('hurt', 0.7);
+              damage(true);       // instant — без invuln
+              p.wrongClicked = true;
+            }
+            return;
+          }
+        }
+      }
     },
 
     onPointerMove: function (x, y) {},
@@ -6627,7 +6819,78 @@ function Level3() {
       }
 
       if (this.phase === 1) this.updateRhythm(dt);
-      // Фазы 2-3 — ЗАГЛУШКИ, тут будет своя логика
+      else if (this.phase === 2) this.updatePhase2(dt);
+    },
+
+    /* ---------- обновление фазы 2 ---------- */
+    updatePhase2: function (dt) {
+      // формулы крутятся по орбитам
+      for (let i = 0; i < this.p2Formulas.length; i++) {
+        const f = this.p2Formulas[i];
+        if (f.dead) continue;
+
+        if (f.flash > 0) f.flash -= dt;
+
+        if (f.flying > 0) {
+          // формула летит к вопросу
+          f.flyT += dt;
+          const k = Math.min(1, f.flyT / 0.3);
+          f.x = f.flyFromX + (f.flyToX - f.flyFromX) * k;
+          f.y = f.flyFromY + (f.flyToY - f.flyFromY) * k;
+          if (k >= 1) f.dead = true;
+        } else {
+          f.angle += f.angularSpeed * dt;
+          f.x = f.centerX + Math.cos(f.angle) * f.radiusX;
+          f.y = f.centerY + Math.sin(f.angle) * f.radiusY;
+        }
+      }
+
+      // снаряд-вопрос
+      const p = this.p2Projectile;
+      if (p && !p.destroyed && !p.impact) {
+        if (p.state === 'charge') {
+          // висит над билетом, слегка покачивается
+          p.chargeT -= dt;
+          p.x = p.startX + Math.sin(this.t * 2.4) * 5;
+          p.y = p.startY + Math.sin(this.t * 3.1) * 4;
+          if (p.chargeT <= 0) {
+            p.state = 'flying';
+            p.t = 0;
+          }
+        } else if (p.state === 'flying') {
+          p.t += dt;
+          const k = Math.min(1, p.t / p.duration);
+          const arc = Math.sin(k * Math.PI) * 40;
+          p.x = p.startX + (p.targetX - p.startX) * k;
+          p.y = p.startY + (p.targetY - p.startY) * k - arc;
+
+          if (k >= 1) {
+            p.state = 'impact';
+            p.impact = true;
+            if (!p.wrongClicked) {
+              damage();
+            } else {
+              this.p2Fx.push({
+                x: p.targetX, y: p.targetY, t: 0.7,
+                color: '#ff6b8a', text: 'ПРОМАХ!'
+              });
+            }
+            const self = this;
+            setTimeout(function () {
+              if (self.waitingForFail) return;
+              if (self.phase !== 2 || self.done) return;
+              self.nextPhase2Round();
+            }, 800);
+          }
+        }
+      }
+
+      // эффекты (всплывающие надписи)
+      for (let i = this.p2Fx.length - 1; i >= 0; i--) {
+        this.p2Fx[i].t -= dt;
+        this.p2Fx[i].y -= 20 * dt;
+        if (this.p2Fx[i].t <= 0) this.p2Fx.splice(i, 1);
+      }
     },
 
     updateRhythm: function (dt) {
@@ -6694,12 +6957,260 @@ function Level3() {
 
       if (this.phase === 1) {
         this.drawRhythmPhase(c);
+      } else if (this.phase === 2) {
+        this.drawPhase2(c);
       } else {
         this.drawPhaseStub(c);
       }
 
       if (this.transT > 0) this.drawTransition(c);
       drawHUD(c);
+    },
+
+    /* ---------- отрисовка фазы 2 ---------- */
+    drawPhase2: function (c) {
+      // --- билет № 2 ---
+      const ticketImg = IMG['ticket_2'];
+      const hasTicket = ticketImg && ticketImg.complete && ticketImg.naturalWidth > 0;
+      const bob = Math.sin(this.t * 1.4) * 6;
+      const bx = W - 180;
+      const by = 200 + bob;
+      c.save();
+      c.translate(bx, by);
+      c.rotate(Math.sin(this.t * 0.7) * 0.04);
+      if (hasTicket) {
+        c.drawImage(ticketImg, -70, -90, 140, 180);
+      } else {
+        c.fillStyle = '#f2f0e6';
+        rr(c, -70, -90, 140, 180, 8); c.fill();
+        c.strokeStyle = '#8a3a3a';
+        c.lineWidth = 4;
+        rr(c, -70, -90, 140, 180, 8); c.stroke();
+        c.fillStyle = '#7a1f2b';
+        c.fillRect(-58, -78, 116, 30);
+        c.fillStyle = '#ffffff';
+        c.font = 'bold 16px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('№ 2', 0, -63);
+        c.fillStyle = '#1a1c2c';
+        c.beginPath(); c.arc(-18, -40, 4, 0, 7); c.fill();
+        c.beginPath(); c.arc(18, -40, 4, 0, 7); c.fill();
+        c.strokeStyle = '#3a0d14';
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(0, -20, 14, 0.15 * Math.PI, 0.85 * Math.PI);
+        c.stroke();
+      }
+      c.restore();
+      c.textBaseline = 'alphabetic';
+      c.textAlign = 'left';
+
+      // --- кот ---
+      this.drawCatSimple(c);
+
+      // --- формулы ---
+      for (let i = 0; i < this.p2Formulas.length; i++) {
+        const f = this.p2Formulas[i];
+        if (f.dead) continue;
+        this.drawFormulaOrb(c, f);
+      }
+
+      // --- вопрос-снаряд ---
+      this.drawProjectile2(c);
+
+      // --- эффекты ---
+      for (let i = 0; i < this.p2Fx.length; i++) {
+        const e = this.p2Fx[i];
+        c.save();
+        c.globalAlpha = Math.min(1, e.t * 1.5);
+        c.fillStyle = e.color;
+        c.font = 'bold 26px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.fillText(e.text, e.x, e.y);
+        c.restore();
+      }
+
+      // --- верхняя инфо-строка ---
+      c.fillStyle = '#9fb6ff';
+      c.font = '15px Verdana';
+      c.textAlign = 'center';
+      c.fillText('БИТВА С БИЛЕТОМ № 2 — ОТБЕЙ ВОПРОС ФОРМУЛОЙ', W / 2, 82);
+
+      c.fillStyle = '#ffd873';
+      c.font = 'bold 14px Verdana';
+      c.fillText('Отбито: ' + this.p2Hits + ' / 3', W / 2, 106);
+
+      const p = this.p2Projectile;
+      if (p && !p.destroyed && !p.impact) {
+        if (p.state === 'charge') {
+          // вопрос ещё висит над билетом — мягкая подсказка
+          c.fillStyle = '#9fb6ff';
+          c.font = 'bold 14px Verdana';
+          c.fillText('Приготовься...', W / 2, 130);
+        } else if (p.state === 'flying') {
+          const left = Math.max(0, p.duration - p.t);
+          c.fillStyle = left < 1 ? '#ff6b8a' : '#7ff0ff';
+          c.font = 'bold 18px Verdana';
+          c.fillText(left.toFixed(1) + ' c', W / 2, 132);
+        }
+      }
+
+      // --- хинты внизу ---
+      if (this.waitingForFail) {
+        const pulse = 0.55 + 0.45 * Math.abs(Math.sin(this.t * 3));
+        c.save();
+        c.globalAlpha = pulse;
+        c.fillStyle = '#ff8a9a';
+        c.font = 'bold 14px "PixelText", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('▶  КЛИКНИ, ЧТОБЫ ПРОСНУТЬСЯ', W / 2, H - 22);
+        c.textBaseline = 'alphabetic';
+        c.restore();
+      } else if (this.hintT > 0) {
+        drawBottomHint(c, 'Кликни правильную формулу, пока вопрос не долетел',
+                       this.hintT, '#7ff0ff');
+      }
+      c.textAlign = 'left';
+    },
+
+    drawFormulaOrb: function (c, f) {
+      c.save();
+
+      // след от полёта (шлейф) — пока формула летит к вопросу
+      if (f.flying > 0) {
+        const k = Math.min(1, f.flyT / 0.3);
+        const dist = 60 * (1 - k);
+        const dirX = (f.flyToX - f.flyFromX);
+        const dirY = (f.flyToY - f.flyFromY);
+        const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+        const ux = dirX / len, uy = dirY / len;
+        for (let t = 1; t <= 6; t++) {
+          c.globalAlpha = (1 - t / 6) * 0.4;
+          c.fillStyle = '#7ff0ff';
+          const tx = f.x - ux * (t * 10 + dist);
+          const ty = f.y - uy * (t * 10 + dist);
+          c.beginPath();
+          c.arc(tx, ty, 24 - t * 2, 0, 7);
+          c.fill();
+        }
+        c.globalAlpha = 1;
+      }
+
+      // свечение
+      const pulse = 1 + Math.sin(this.t * 3 + f.angle) * 0.08;
+      const glowR = 42 * pulse;
+
+      if (f.correct) {
+        const g = c.createRadialGradient(f.x, f.y, 5, f.x, f.y, glowR);
+        g.addColorStop(0, 'rgba(127,240,255,0.30)');
+        g.addColorStop(1, 'rgba(127,240,255,0)');
+        c.fillStyle = g;
+        c.beginPath(); c.arc(f.x, f.y, glowR, 0, 7); c.fill();
+      } else if (f.flash > 0) {
+        const g = c.createRadialGradient(f.x, f.y, 5, f.x, f.y, glowR);
+        g.addColorStop(0, 'rgba(255,80,110,0.45)');
+        g.addColorStop(1, 'rgba(255,80,110,0)');
+        c.fillStyle = g;
+        c.beginPath(); c.arc(f.x, f.y, glowR, 0, 7); c.fill();
+      }
+
+      // плашка — ширина подстраивается под длину текста
+      c.font = 'bold 18px "PixelTitle", Verdana';
+      const tw = c.measureText(f.text).width;
+      const w = Math.max(120, tw + 34);
+      const h = 44;
+      f.w = w; f.h = h;         // запомнили — пригодится для клика
+      const x = f.x - w / 2;
+      const y = f.y - h / 2;
+
+      let bg = '#182450';
+      let border = '#4a63b8';
+      if (f.flash > 0) { bg = '#5a1c1c'; border = '#ff6b8a'; }
+
+      c.fillStyle = bg;
+      rr(c, x, y, w, h, 8); c.fill();
+      c.strokeStyle = border;
+      c.lineWidth = 3;
+      rr(c, x, y, w, h, 8); c.stroke();
+
+      // текст
+      c.fillStyle = '#dfe6ff';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(f.text, f.x, f.y + 1);
+      c.textBaseline = 'alphabetic';
+
+      c.restore();
+    },
+
+    drawProjectile2: function (c) {
+      const p = this.p2Projectile;
+      if (!p || p.destroyed || p.impact) return;
+
+      const rot = Math.sin(this.t * 2.2) * 0.12;
+
+      c.save();
+      c.translate(p.x, p.y);
+      c.rotate(rot);
+
+      // ореол
+      const g = c.createRadialGradient(0, 0, 10, 0, 0, 90);
+      g.addColorStop(0, 'rgba(255,205,117,0.35)');
+      g.addColorStop(1, 'rgba(255,205,117,0)');
+      c.fillStyle = g;
+      c.beginPath(); c.arc(0, 0, 90, 0, 7); c.fill();
+
+      // карточка
+      const w = 200, h = 80;
+      c.fillStyle = '#f2f0e6';
+      rr(c, -w/2, -h/2, w, h, 8); c.fill();
+      c.strokeStyle = '#8a3a3a';
+      c.lineWidth = 4;
+      rr(c, -w/2, -h/2, w, h, 8); c.stroke();
+
+      // шапка
+      c.fillStyle = '#7a1f2b';
+      c.fillRect(-w/2 + 4, -h/2 + 4, w - 8, 22);
+      c.fillStyle = '#ffffff';
+      c.font = 'bold 11px "PixelTitle", Verdana';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('ВОПРОС', 0, -h/2 + 15);
+
+      // текст вопроса мелким шрифтом
+      c.fillStyle = '#1a0f30';
+      c.font = 'bold 12px "PixelText", Verdana';
+      const qText = this.p2CurrentQ ? this.p2CurrentQ.question : '';
+      const lines = this.wrapTextInBox(qText, w - 16, c);
+      const startY = -h/2 + 40;
+      for (let i = 0; i < lines.length && i < 3; i++) {
+        c.fillText(lines[i], 0, startY + i * 14);
+      }
+      c.textBaseline = 'alphabetic';
+
+      c.restore();
+    },
+
+    /* Перенос текста в фиксированную ширину — до 3 строк.
+       Использует текущий шрифт контекста. */
+    wrapTextInBox: function (text, maxW, c) {
+      const words = String(text).split(' ');
+      const lines = [];
+      let cur = '';
+      for (let i = 0; i < words.length; i++) {
+        const test = cur ? cur + ' ' + words[i] : words[i];
+        if (c.measureText(test).width > maxW && cur) {
+          lines.push(cur);
+          if (lines.length >= 3) { cur = ''; break; }
+          cur = words[i];
+        } else {
+          cur = test;
+        }
+      }
+      if (cur && lines.length < 3) lines.push(cur);
+      return lines;
     },
 
     drawRhythmPhase: function (c) {
