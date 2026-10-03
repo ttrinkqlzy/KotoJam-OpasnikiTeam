@@ -1252,6 +1252,18 @@ const STORY = {
       text: 'Кот глубоко вздыхает. Три вопроса. На размышление — секунды.' }
   ]},
 
+  level3_mid: { slides: [
+    { img: 'level3_1',
+      label: 'Охранник кивает.\nТурникет щёлкает.\nКот — ещё за турникетом.',
+      text: 'Охранник кивнул — и турникет щёлкнул. Кот недоверчиво шагнул вперёд.' },
+    { img: 'level3_11',
+      label: 'Кот прошёл.\nОхранник махнул лапой.\nКот облегчённо выдохнул.',
+      text: 'Он прошёл. Охранник его впустил. Кот облегчённо выдохнул.' },
+    { img: 'level3_111',
+      label: 'Лестница исчезла.\nКоридоры вытянулись.\nВместо стен — лабиринт.',
+      text: 'Один шаг и лестница пропала. Лифты не работали. Кабинеты будто поменялись местами — а коридоры вытянулись в настоящий лабиринт.\nНужно найти путь на третий этаж, в аудиторию 305.' }
+  ]},
+
   level4: { slides: [
     { label: 'Тишина стала густой,\nкак вода.\nНа доске — три билета.',
       text: 'Сон четвёртый: «Билеты».\n\nТишина сгустилась. На классной доске висели три билета.\n\nОдин — слева. Второй — по центру. Третий — справа.' },
@@ -1389,7 +1401,7 @@ const LEVEL_HINTS = {
 
   /* ===== УРОВЕНЬ 3 — «ПРОПУСК» ===== */
   '3-0': 'Охранник задаст три вопроса про ТюмГУ. За неверный ответ — минус сердце. Всего три сердца — читай варианты внимательно.',
-  '3-1': 'Управление — стрелки или WASD. Найди мигающий выход (лестницу или 305) и собирай осколки по пути. Стены «1» и кабинеты «C» — непроходимы.',
+  '3-1': 'Управление — стрелки или WASD. Найди мигающий выход (лестницу или 305) и собирай осколки по пути. Стены и кабинеты без света — непроходимы.',
 
   /* ===== УРОВЕНЬ 4 — общая (пока не доделан) ===== */
   4: 'Фаза 1 — зачётка кусает, уворачивайся. Фаза 2 — гоняется за тобой, беги и прыгай. Фаза 3 — замирает: кликай по ней, чтобы ударить. Осколков больше — урон сильнее!'
@@ -1408,14 +1420,14 @@ const IMG_NAMES = [
   'page_1', 'page_2', 'page_3', 'bg_catch','backpack', 'bg_subway',
   'item_notebook', 'item_apple', 'item_sandwich', 'item_pen', 'item_thermos',
   'item_sock', 'item_cup', 'item_joystick', 'item_slipper', 
-  'cat_shoot', 'paper_bullet',
+  'cat_shoot', 'paper_bullet', 'wall', 'door', 'stairs', 'floor', 
 
     // ----- Картинки для визуальной новеллы и фонов уровней -----
   'story_intro_1', 'story_intro_2', 'story_intro_3', 'story_intro_4', 'story_intro_5', 'story_intro_6',
   'story_level1_1', 'story_level1_2', 'story_level1_3', 'story_level1_4',
   'level1_1', 'level1_2', 'level1_3',
   'story_level2_1', 'story_level2_2', 'story_level2_3',
-  'story_level3_1', 'level3_1', 'level3_2', 'level3_3',
+  'story_level3_1', 'level3_1', 'level3_11', 'level3_111', 'level3_2', 'level3_3',
   'story_after1_1', 'story_after1_2', 'story_after1_3',
   'story_intro2_1', 'story_intro2_2', 'story_intro2_3',
   'story_intro2_31', 'story_intro2_32',
@@ -5780,7 +5792,7 @@ function Level3() {
       const BTN_H   = 42;    // обычная высота кнопки
       const EXPAND  = 46;    // на сколько раскрывается панель (место под пояснение)
       const GAP     = 6;
-      const START_Y = 218;   // старт — ниже кнопок паузы/подсказки в углу
+      const START_Y = 232;   // старт — опустили, чтобы длинный вопрос поместился
 
       const chosen  = this.chosenAnswer;
       const correct = this.activeQuestions[this.currentQ]
@@ -5850,14 +5862,34 @@ function Level3() {
       if (this.currentQ >= 3) {
         const self = this;
         playSound('perehod', 0.7);
-        this.transT = 1.5;
-        this.transText = 'ОХРАННИК КИВАЕТ...';
+
+        // Показываем сюжетную вставку вместо сухой надписи «ОХРАННИК КИВАЕТ...»
         setTimeout(function () {
-          self.phase = 1;
-          self.loadFloor(0);
-          self.transT = 0.9;
-          self.transText = 'ФАЗА 2: 1 ЭТАЖ';
-        }, 1300);
+          showStory(STORY.level3_mid, function () {
+
+            function startMaze() {
+              self.phase = 1;
+              self.loadFloor(0);
+              self.transT = 0.9;
+              self.transText = 'ФАЗА 2: 1 ЭТАЖ';
+            }
+
+            // Модалка-предупреждение перед лабиринтом — как в других уровнях
+            if (!G.seenWarn.phase2maze) {
+              G.seenWarn.phase2maze = true;
+              showWarning(
+                'ФАЗА 2: ЛАБИРИНТ',
+                'Лестницы исчезли, лифты не работают — придётся идти пешком.\n\n' +
+                'Ищи выход на каждом этаже: мигающую лестницу (а на третьем — дверь 305). По пути собирай голубые осколки смелости — они пригодятся в финале.\n\n' +
+                'Управление — стрелки или WASD.',
+                '#7ff0ff',
+                startMaze
+              );
+            } else {
+              startMaze();
+            }
+          });
+        }, 300);
       }
     },
 
@@ -6088,34 +6120,45 @@ function Level3() {
       c.fillStyle = g;
       c.fillRect(0, 0, W, H);
 
-      // счётчик вопроса — под HUD
-      c.fillStyle = '#7ff0ff';
-      c.font = 'bold 16px "PixelTitle", Verdana';
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      c.fillText('ВОПРОС ' + (this.currentQ + 1) + ' / 3', W / 2, 140);
-      c.textBaseline = 'alphabetic';
+      // счётчик вопроса — рисуем только пока есть активный вопрос (0..2)
+      if (this.currentQ < 3) {
+        c.fillStyle = '#7ff0ff';
+        c.font = 'bold 16px "PixelTitle", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('ВОПРОС ' + (this.currentQ + 1) + ' / 3', W / 2, 122);
+        c.textBaseline = 'alphabetic';
+      }
 
       const q = this.activeQuestions[this.currentQ];
       if (!q) return;
 
+      // ---- сам вопрос — просто белый текст, без обёртки ----
       c.fillStyle = '#dfe6ff';
       c.font = 'bold 19px "PixelText", Verdana';
       c.textAlign = 'center';
-      wrapText(c, '«' + q.q + '»', W / 2, 172, 860, 24);
+      wrapText(c, '«' + q.q + '»', W / 2, 160, 860, 22);
 
       const rects = this.layoutButtons();
 
       for (let i = 0; i < 4; i++) {
         const b = rects[i];
-        let bgColor = '#182450';
-        let borderColor = '#4a63b8';
+        // фоны — полупрозрачные. Обычный — бирюзовый (как «ВОПРОС X / 3»),
+        // верный — зелёный, неверный — красный. Все с прозрачностью.
+        let bgColor = 'rgba(115,240,247,0.14)';
+        let borderColor = '#7ff0ff';
 
         if (this.chosenAnswer === i) {
-          if (this.answerIsCorrect) { bgColor = '#1c5a30'; borderColor = '#4fe0a0'; }
-          else { bgColor = '#5a1c1c'; borderColor = '#ff6b8a'; }
+          if (this.answerIsCorrect) {
+            bgColor = 'rgba(79,224,160,0.22)';
+            borderColor = '#4fe0a0';
+          } else {
+            bgColor = 'rgba(255,107,138,0.22)';
+            borderColor = '#ff6b8a';
+          }
         } else if (this.chosenAnswer >= 0 && i === q.correct) {
-          bgColor = '#1c5a30'; borderColor = '#4fe0a0';
+          bgColor = 'rgba(79,224,160,0.18)';
+          borderColor = '#4fe0a0';
         }
 
         // основная плашка
@@ -6222,6 +6265,9 @@ function Level3() {
       // ---- счётчик для номеров кабинетов ----
       let roomCounter = 0;
 
+      // мягкие углы для обводки текста
+      c.lineJoin = 'round';
+
       // ---- клетки ----
       for (let r = 0; r < this.ROW; r++) {
         const row = this.maze[r];
@@ -6231,80 +6277,127 @@ function Level3() {
           const y = OY + r * CH;
 
           if (ch === '1') {
-            // глухая стена
-            c.fillStyle = '#1a2440';
-            c.fillRect(x, y, CW, CH);
-            c.fillStyle = '#253358';
-            c.fillRect(x + 1, y + 1, CW - 2, CH - 2);
-            c.strokeStyle = '#3b5dc9';
-            c.lineWidth = 1;
-            c.strokeRect(x + 0.5, y + 0.5, CW - 1, CH - 1);
+            // ========== СТЕНА ==========
+            const wallImg = IMG['wall'];
+            if (wallImg && wallImg.complete && wallImg.naturalWidth > 0) {
+              c.drawImage(wallImg, x, y, CW, CH);
+            } else {
+              // процедурный fallback — старое оформление
+              c.fillStyle = '#1a2440';
+              c.fillRect(x, y, CW, CH);
+              c.fillStyle = '#253358';
+              c.fillRect(x + 1, y + 1, CW - 2, CH - 2);
+              c.strokeStyle = '#3b5dc9';
+              c.lineWidth = 1;
+              c.strokeRect(x + 0.5, y + 0.5, CW - 1, CH - 1);
+            }
           } else if (ch === 'C') {
-            // кабинет в стене
+            // ========== ДВЕРЬ КАБИНЕТА ==========
             roomCounter++;
 
-            c.fillStyle = '#2a1f3a';
-            c.fillRect(x, y, CW, CH);
-            c.fillStyle = '#3a2a50';
-            rr(c, x + 4, y + 4, CW - 8, CH - 8, 3); c.fill();
-            c.strokeStyle = '#5a4a80';
-            c.lineWidth = 1.5;
-            rr(c, x + 4, y + 4, CW - 8, CH - 8, 3); c.stroke();
+            const doorImg = IMG['door'];
+            if (doorImg && doorImg.complete && doorImg.naturalWidth > 0) {
+              c.drawImage(doorImg, x, y, CW, CH);
+            } else {
+              // процедурный fallback — старое оформление
+              c.fillStyle = '#2a1f3a';
+              c.fillRect(x, y, CW, CH);
+              c.fillStyle = '#3a2a50';
+              rr(c, x + 4, y + 4, CW - 8, CH - 8, 3); c.fill();
+              c.strokeStyle = '#5a4a80';
+              c.lineWidth = 1.5;
+              rr(c, x + 4, y + 4, CW - 8, CH - 8, 3); c.stroke();
 
-            // ручка двери
-            c.fillStyle = '#ffcd75';
-            c.beginPath();
-            c.arc(x + CW - 10, y + CH / 2, 1.8, 0, 7);
-            c.fill();
+              c.fillStyle = '#ffcd75';
+              c.beginPath();
+              c.arc(x + CW - 10, y + CH / 2, 1.8, 0, 7);
+              c.fill();
+            }
 
-            // номер кабинета — по порядку: 101, 102, 103...
-            const roomNum = (this.curFloor + 1) * 100 + roomCounter;
-            c.fillStyle = '#c8a8e8';
+            // ---- номер кабинета: белый с тёмно-бирюзовой обводкой ----
+            // Пропускаем номер, который совпадает с номером выхода (например, 305 на 3 этаже)
+            let roomNum = (this.curFloor + 1) * 100 + roomCounter;
+            const exitNum = parseInt(this.exitLabel, 10);
+            if (!isNaN(exitNum) && roomNum === exitNum) {
+              roomCounter++;
+              roomNum = (this.curFloor + 1) * 100 + roomCounter;
+            }
             c.font = 'bold 11px "PixelText", Verdana';
             c.textAlign = 'center';
             c.textBaseline = 'middle';
+            c.lineWidth = 3;
+            c.strokeStyle = '#0a2226';          // тёмно-бирюзовый контур
+            c.strokeText('' + roomNum, x + CW / 2, y + CH / 2);
+            c.fillStyle = '#ffffff';            // белые буквы
             c.fillText('' + roomNum, x + CW / 2, y + CH / 2);
             c.textBaseline = 'alphabetic';
           } else {
-            // пол
-            c.fillStyle = '#0e1428';
-            c.fillRect(x, y, CW, CH);
-            c.strokeStyle = 'rgba(80,120,200,0.08)';
-            c.lineWidth = 1;
-            c.strokeRect(x + 0.5, y + 0.5, CW - 1, CH - 1);
+            // ========== ПОЛ (в т.ч. стартовые S и выход E) ==========
+            const floorImg = IMG['floor'];
+            if (floorImg && floorImg.complete && floorImg.naturalWidth > 0) {
+              c.drawImage(floorImg, x, y, CW, CH);
+            } else {
+              // процедурный fallback
+              c.fillStyle = '#0e1428';
+              c.fillRect(x, y, CW, CH);
+              c.strokeStyle = 'rgba(80,120,200,0.08)';
+              c.lineWidth = 1;
+              c.strokeRect(x + 0.5, y + 0.5, CW - 1, CH - 1);
+            }
           }
         }
       }
 
-      // ---- выход с миганием ----
+      // ---- ВЫХОД: голубое свечение — ТОЛЬКО ЗА картинкой (по краям) ----
       {
         const x = OX + this.exitCol * CW;
         const y = OY + this.exitRow * CH;
+        const cx = x + CW / 2;
+        const cy = y + CH / 2;
 
-        const rad = 20 + 12 * pulse;
-        const gg = c.createRadialGradient(
-          x + CW / 2, y + CH / 2, 3,
-          x + CW / 2, y + CH / 2, rad
-        );
-        gg.addColorStop(0, 'rgba(255,205,117,' + (0.7 * pulse) + ')');
-        gg.addColorStop(1, 'rgba(255,205,117,0)');
+        const isLastFloor = (this.curFloor >= 2);
+
+        // 1) голубой ореол ЗА картинкой — центр перекрыт спрайтом
+        const innerR = CW * 0.40;
+        const outerR = CW * 0.80 + pulse * 4;
+        const gg = c.createRadialGradient(cx, cy, innerR, cx, cy, outerR);
+        gg.addColorStop(0,   'rgba(115,240,247,' + (0.40 + 0.10 * pulse) + ')');
+        gg.addColorStop(0.5, 'rgba(65,166,246,'  + (0.20 + 0.10 * pulse) + ')');
+        gg.addColorStop(1,   'rgba(115,240,247,0)');
         c.fillStyle = gg;
         c.beginPath();
-        c.arc(x + CW / 2, y + CH / 2, rad, 0, 7);
+        c.arc(cx, cy, outerR, 0, 7);
         c.fill();
 
-        c.fillStyle = 'rgba(255,205,117,' + (0.55 + 0.45 * pulse) + ')';
-        rr(c, x + 3, y + 3, CW - 6, CH - 6, 4); c.fill();
-        c.strokeStyle = '#ffcd75';
-        c.lineWidth = 1.5 + pulse * 1.5;
-        rr(c, x + 3, y + 3, CW - 6, CH - 6, 4); c.stroke();
+        // 2) иконка выхода — поверх ореола
+        const exitImgName = isLastFloor ? 'door' : 'stairs';
+        const exitImg = IMG[exitImgName];
+        if (exitImg && exitImg.complete && exitImg.naturalWidth > 0) {
+          c.drawImage(exitImg, x, y, CW, CH);
 
-        c.fillStyle = '#3a2a10';
-        c.font = 'bold 12px "PixelText", Verdana';
-        c.textAlign = 'center';
-        c.textBaseline = 'middle';
-        c.fillText(this.exitLabel, x + CW / 2, y + CH / 2 + 1);
-        c.textBaseline = 'alphabetic';
+          if (isLastFloor) {
+            c.font = 'bold 11px "PixelText", Verdana';
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.lineWidth = 3;
+            c.strokeStyle = '#0a2226';
+            c.strokeText(this.exitLabel, cx, cy);
+            c.fillStyle = '#ffffff';
+            c.fillText(this.exitLabel, cx, cy);
+            c.textBaseline = 'alphabetic';
+          }
+        } else {
+          // fallback — голубая плашка
+          c.fillStyle = 'rgba(115,240,247,' + (0.55 + 0.30 * pulse) + ')';
+          rr(c, x + 3, y + 3, CW - 6, CH - 6, 4); c.fill();
+
+          c.fillStyle = '#0a2226';
+          c.font = 'bold 12px "PixelText", Verdana';
+          c.textAlign = 'center';
+          c.textBaseline = 'middle';
+          c.fillText(this.exitLabel, cx, cy + 1);
+          c.textBaseline = 'alphabetic';
+        }
       }
 
       // ---- осколки ----
@@ -6399,19 +6492,24 @@ function Level3() {
         c.fillRect(0, 0, W, H);
       }
 
-      // 2) тёмная плашка под текст — чтобы надпись читалась на любом фоне
-      c.fillStyle = 'rgba(5,8,20,0.70)';
-      const tw = 520;
-      rr(c, W / 2 - tw / 2, H / 2 - 34, tw, 68, 12); c.fill();
-      c.strokeStyle = 'rgba(115,240,247,0.45)';
-      c.lineWidth = 2;
-      rr(c, W / 2 - tw / 2, H / 2 - 34, tw, 68, 12); c.stroke();
-
-      // 3) сам текст
-      c.fillStyle = '#cfe0ff';
+      // 2) размер плашки — по тексту, с минимумом 520 и запасом по краям
       c.font = 'bold 30px "PixelTitle", Verdana';
       c.textAlign = 'center';
       c.textBaseline = 'middle';
+
+      const padX = 60;                          // отступы текста слева/справа
+      const textW = c.measureText(this.transText).width;
+      const tw = Math.max(520, textW + padX * 2);
+      const th = 68;
+
+      c.fillStyle = 'rgba(5,8,20,0.70)';
+      rr(c, W / 2 - tw / 2, H / 2 - th / 2, tw, th, 12); c.fill();
+      c.strokeStyle = 'rgba(115,240,247,0.45)';
+      c.lineWidth = 2;
+      rr(c, W / 2 - tw / 2, H / 2 - th / 2, tw, th, 12); c.stroke();
+
+      // 3) сам текст
+      c.fillStyle = '#cfe0ff';
       c.fillText(this.transText, W / 2, H / 2 + 2);
       c.textBaseline = 'alphabetic';
     }
