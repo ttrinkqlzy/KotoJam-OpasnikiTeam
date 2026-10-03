@@ -2166,6 +2166,7 @@ function checkAchievements() {
       showAchievement(a);
     }
   }
+
 }
 function showAchievement(a) {
   achEl.innerHTML = '<span class="ac-title">★ ' + a.name + '</span>' +
@@ -2183,7 +2184,18 @@ function getTotalFragments() {
     sum += G.fragmentsByLevel[i];
   }
   return sum;
+
 }
+
+function getShotDamage() 
+{
+  const f = (G.fragmentsByLevel[0] || 0) +
+            (G.fragmentsByLevel[1] || 0) +
+            (G.fragmentsByLevel[2] || 0);
+  if (f <= 10) return 1;
+  return 3;
+}
+
 
 /** Добавить осколок(и) на текущем уровне + проверить ачивки */
 function addFragment(n) {
@@ -6593,8 +6605,8 @@ function Level4() {
     p3BossX: 480,
     p3BossY: 180,
     p3BossVX: 120,
-    p3BossHP: 10,
-    p3BossMaxHP: 10,
+    p3BossHP: 15,
+    p3BossMaxHP: 15,
 
     p3BossStunned: false,
     p3BossStunT: 0,           // сколько ещё стана (сек)
@@ -6654,8 +6666,8 @@ function Level4() {
         this.p3BossX = 480;
         this.p3BossY = 180;
         this.p3BossVX = 120;
-        this.p3BossHP = 10;
-        this.p3BossMaxHP = 10;
+        this.p3BossHP = 15;
+        this.p3BossMaxHP = 15;
 
         this.p3BossStunned = false;
         this.p3BossStunT = 0;
@@ -7182,13 +7194,15 @@ function Level4() {
       }
 
       // ======================== БОСС ========================
-      // летает влево-вправо в верхней части
-      this.p3BossX += this.p3BossVX * dt;
-      if (this.p3BossX < 140) { this.p3BossX = 140; this.p3BossVX *= -1; }
-      if (this.p3BossX > W - 140) { this.p3BossX = W - 140; this.p3BossVX *= -1; }
+      // горизонтальное движение — только когда не в стане
+      if (!this.p3BossStunned) {
+        this.p3BossX += this.p3BossVX * dt;
+        if (this.p3BossX < 140) { this.p3BossX = 140; this.p3BossVX *= -1; }
+        if (this.p3BossX > W - 140) { this.p3BossX = W - 140; this.p3BossVX *= -1; }
+      }
 
       if (this.p3BossStunned) {
-        // стан
+        // стан — ждём конца
         this.p3BossStunT -= dt;
         if (this.p3BossStunT <= 0) {
           this.p3BossStunned = false;
@@ -7216,13 +7230,22 @@ function Level4() {
             this.p3AOEs.push({
               x: 100 + Math.random() * (W - 200),
               y: this.p3CatY,
-              warnT: 0.7,       // сколько светится до взрыва
-              boomT: 0.35,      // длительность взрыва
+              warnT: 0.7,
+              boomT: 0.35,
               state: 'warn'
             });
           }
         }
       }
+
+      // ↓ ДОБАВИТЬ: вертикальная интерполяция —
+      //   в стан приземляемся к полу, вне стана улетаем в верхнюю зону
+      const bossTargetY = this.p3BossStunned
+        ? (this.p3CatY - 90)   // низ билета на уровне лап кота (460 - 90 = 370)
+        : 180;                 // обычная высота полёта
+
+      const dyBoss = bossTargetY - this.p3BossY;
+      this.p3BossY += dyBoss * Math.min(1, dt * 6);
 
       // ======================== AOE ========================
       const catBox = {
@@ -7270,9 +7293,11 @@ function Level4() {
           const dyb = b.y - this.p3BossY;
           if (dxb * dxb + dyb * dyb < bossR * bossR) {
             this.p3Bullets.splice(i, 1);
-            this.p3BossHP--;
+
+            const dmg = getShotDamage();
+            this.p3BossHP -= dmg;
             playSound('hurt', 0.5);
-            this.p3Feedback = '−1';
+            this.p3Feedback = '−' + dmg;
             this.p3FeedbackCol = '#ffd873';
             this.p3FeedbackT = 0.4;
 
@@ -7460,15 +7485,11 @@ function Level4() {
 
     // отрисовка фазы 3
     drawPhase3: function (c) {
-      // фон и пол
+      // фон
       drawBackground(c, 'bg_dedus', '#0c1024', '#05070f');
       c.fillStyle = 'rgba(8, 12, 26, 0.5)';
       c.fillRect(0, 0, W, H);
 
-      c.fillStyle = '#101733';
-      c.fillRect(0, this.p3CatY, W, H - this.p3CatY);
-      c.fillStyle = '#1b2450';
-      c.fillRect(0, this.p3CatY, W, 6);
 
       // ================= AOE =================
       for (let i = 0; i < this.p3AOEs.length; i++) {
@@ -7500,8 +7521,14 @@ function Level4() {
       }
 
       // ================= БОСС =================
-      const bossImg = IMG['ticket_3'];
-      const hasBossImg = bossImg && bossImg.complete && bossImg.naturalWidth > 0;
+      const bossNormal   = IMG['ticket_3'];
+      const bossConfused = IMG['ticket_3_confused'];
+      const hasNormal    = bossNormal   && bossNormal.complete   && bossNormal.naturalWidth   > 0;
+      const hasConfused  = bossConfused && bossConfused.complete && bossConfused.naturalWidth > 0;
+
+      const bossImg = this.p3BossStunned ? bossConfused : bossNormal;
+      const hasBossImg = this.p3BossStunned ? hasConfused : hasNormal;
+
       const bob = this.p3BossStunned ? 0 : Math.sin(this.t * 2) * 8;
 
       c.save();
@@ -7515,6 +7542,7 @@ function Level4() {
       if (hasBossImg) {
         c.drawImage(bossImg, -70, -90, 140, 180);
       } else {
+        // ===== Резервная векторная отрисовка =====
         c.fillStyle = '#f2f0e6';
         rr(c, -70, -90, 140, 180, 8); c.fill();
         c.strokeStyle = this.p3BossStunned ? '#7ff0ff' : '#8a3a3a';
@@ -7530,20 +7558,46 @@ function Level4() {
         c.textBaseline = 'middle';
         c.fillText('№ 3', 0, -63);
 
-        c.fillStyle = '#1a1c2c';
-        c.beginPath(); c.arc(-18, -40, 4, 0, 7); c.fill();
-        c.beginPath(); c.arc(18, -40, 4, 0, 7); c.fill();
-
-        c.strokeStyle = '#3a0d14';
-        c.lineWidth = 3;
-        c.beginPath();
         if (this.p3BossStunned) {
-          // оглушённая улыбка
-          c.arc(0, -20, 14, 0.15 * Math.PI, 0.85 * Math.PI);
+          // ---- РАСТЕРЯННЫЙ ----
+          // глаза — большие, с испуганным бликом
+          c.fillStyle = '#1a1c2c';
+          c.beginPath(); c.arc(-18, -40, 6, 0, 7); c.fill();
+          c.beginPath(); c.arc(18, -40, 6, 0, 7); c.fill();
+          c.fillStyle = '#ffffff';
+          c.beginPath(); c.arc(-16, -42, 2, 0, 7); c.fill();
+          c.beginPath(); c.arc(20, -42, 2, 0, 7); c.fill();
+
+          // приподнятые брови
+          c.strokeStyle = '#3a0d14';
+          c.lineWidth = 3;
+          c.beginPath();
+          c.moveTo(-28, -52); c.lineTo(-10, -54);
+          c.moveTo(28, -52);  c.lineTo(10, -54);
+          c.stroke();
+
+          // ротик-«о»
+          c.beginPath();
+          c.arc(0, -16, 5, 0, 7);
+          c.stroke();
         } else {
+          // ---- ХМУРЫЙ ----
+          c.fillStyle = '#1a1c2c';
+          c.beginPath(); c.arc(-18, -40, 4, 0, 7); c.fill();
+          c.beginPath(); c.arc(18, -40, 4, 0, 7); c.fill();
+
+          c.strokeStyle = '#3a0d14';
+          c.lineWidth = 3;
+          // нахмуренные брови
+          c.beginPath();
+          c.moveTo(-26, -50); c.lineTo(-10, -46);
+          c.moveTo(26, -50);  c.lineTo(10, -46);
+          c.stroke();
+          // злая улыбка
+          c.beginPath();
           c.arc(0, -10, 14, 1.15 * Math.PI, 1.85 * Math.PI);
+          c.stroke();
         }
-        c.stroke();
       }
       c.restore();
       c.textBaseline = 'alphabetic';
@@ -7552,16 +7606,16 @@ function Level4() {
       for (let i = 0; i < this.p3Bullets.length; i++) {
         const b = this.p3Bullets[i];
         if (IMG['paper_bullet'] && IMG['paper_bullet'].complete) {
-          c.drawImage(IMG['paper_bullet'], b.x - 12, b.y - 12, 24, 24);
+          c.drawImage(IMG['paper_bullet'], b.x - 8, b.y - 8, 16, 16);
         } else {
           c.fillStyle = '#f4f4f4';
-          c.beginPath(); c.arc(b.x, b.y, 10, 0, 7); c.fill();
+          c.beginPath(); c.arc(b.x, b.y, 6, 0, 7); c.fill();
           c.strokeStyle = '#8a8a8a';
-          c.lineWidth = 1.5;
-          c.beginPath(); c.arc(b.x, b.y, 10, 0, 7); c.stroke();
+          c.lineWidth = 1.2;
+          c.beginPath(); c.arc(b.x, b.y, 6, 0, 7); c.stroke();
           c.fillStyle = '#c0c0c0';
-          c.fillRect(b.x - 6, b.y - 2, 4, 1);
-          c.fillRect(b.x - 2, b.y + 3, 5, 1);
+          c.fillRect(b.x - 3.5, b.y - 1, 2.5, 1);
+          c.fillRect(b.x - 1, b.y + 2, 3, 1);
         }
       }
 
