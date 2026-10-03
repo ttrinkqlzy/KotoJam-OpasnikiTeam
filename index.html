@@ -299,6 +299,23 @@ h1 .blue-word {
   letter-spacing: 3px;
   text-align: center;
   margin-top: 2px;
+  font-family: 'PixelText', monospace;
+}
+.lvl-hearts .h-full  { color: inherit; }
+.lvl-hearts .h-empty { color: rgba(255,255,255,0.22); }
+/* полу-сердечко: то же самое ❤, только правая половина прозрачная */
+.lvl-hearts .h-half {
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    currentColor 0%,
+    currentColor 50%,
+    rgba(255,255,255,0.22) 50%,
+    rgba(255,255,255,0.22) 100%
+  );
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .lvl-frag {
   font-size: 12px;
@@ -327,19 +344,40 @@ h1 .blue-word {
   color: var(--c-accent);
   letter-spacing: 1px;
 }
-.lvl.done .lvl-state {
+/* «✓ пройден» — зелёный, но только если уровень НЕ идеальный.
+   Для идеальных ниже отдельное правило с золотым цветом. */
+.lvl.done:not(.perfect) .lvl-state {
   color: var(--c-green);
 }
 .map-foot {
   display: flex;
-  gap: 40px;
-  font-size: 13px;
+  gap: 28px;
+  font-size: 14px;
   color: var(--c-text-dim);
   letter-spacing: 1px;
   align-items: center;
+  font-family: 'PixelText', monospace;
+  flex-wrap: wrap;
+  justify-content: center;
 }
-#mapHearts { color: var(--c-red); letter-spacing: 4px; }
-#mapAch { color: var(--c-gold); font-size: 12px; }
+.map-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.map-stat b {
+  color: var(--c-text);
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+.ms-icon {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
+}
+.ms-icon.heart  { color: #ff4d6d; }
+.ms-icon.frag   { color: #7ff0ff; }
+.ms-icon.trophy { color: var(--c-gold); }
 
 /* ============================================================
    ФИНАЛЬНЫЙ ЭКРАН
@@ -660,18 +698,171 @@ h1 .blue-word {
   box-shadow: 2px 2px 0 var(--c-shadow);
 }
 
-/* DEBUG: кнопка пропуска фазы */
-.skip-btn {
-  right: 66px;                        /* сдвинута левее pause-btn */
+/* Кнопка подсказки — слева от паузы, жёлтая «лампочка» */
+.hint-btn {
+  right: 66px;
   border-color: var(--c-gold);
   color: var(--c-gold);
   font-size: 20px;
-  font-weight: bold;
+  line-height: 1;
+  font-weight: normal;
 }
-.skip-btn:hover {
+.hint-btn:hover {
   background: rgba(255, 205, 117, 0.18);
   border-color: var(--c-gold);
   color: var(--c-gold);
+}
+
+/* ============================================================
+   КНОПКА НАСТРОЕК ⚙ (на карте и сюжете)
+   ============================================================ */
+.settings-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  background: var(--c-panel);
+  border: 3px solid var(--c-accent);
+  border-radius: 0;
+  color: var(--c-text);
+  font-size: 20px;
+  font-family: 'PixelText', monospace;
+  cursor: pointer;
+  z-index: 750;
+  transition: none;
+  box-shadow: 4px 4px 0 var(--c-shadow);
+}
+.settings-btn:hover {
+  background: var(--c-panel-2);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--c-shadow);
+}
+.settings-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--c-shadow);
+}
+/* на сюжете — слева сверху, чтобы не мешать кнопке «ПРОПУСТИТЬ» */
+#storyScreen .settings-btn {
+  left: 24px;
+  right: auto;
+}
+
+/* кнопка достижений — слева от шестерёнки (только на карте) */
+.ach-btn {
+  right: 76px;
+}
+
+/* окно настроек — поверх паузы, но под фейдом затемнения */
+#settingsOverlay {
+  z-index: 850;
+}
+
+/* ============================================================
+   ОКНО ДОСТИЖЕНИЙ
+   ============================================================ */
+#achievementsOverlay {
+  z-index: 850;
+}
+#achievementsOverlay .pause-panel.ach-panel {
+  min-width: 720px;
+  max-width: 760px;
+  padding: 22px 30px;          /* компактнее, чем у обычной панели */
+  gap: 8px;                    /* меньше вертикальные промежутки */
+}
+#achievementsOverlay .pause-panel h3 {
+  margin: 0 0 4px;             /* было 12 — уменьшил */
+  font-size: 18px;
+}
+.ach-progress-line {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--c-gold);
+  font-family: 'PixelText', monospace;
+  text-align: center;
+}
+.ach-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;   /* 9 карточек = 3 × 3 */
+  gap: 8px;
+  max-height: 280px;                    /* с запасом влезает без скролла */
+  overflow-y: auto;
+  padding: 2px;
+  margin: 0 0 6px;
+  text-align: left;
+}
+/* скроллбар в стиле игры */
+.ach-list::-webkit-scrollbar { width: 10px; }
+.ach-list::-webkit-scrollbar-track {
+  background: var(--c-bg-1);
+  border: 2px solid var(--c-panel-2);
+}
+.ach-list::-webkit-scrollbar-thumb {
+  background: var(--c-accent);
+  border: 2px solid var(--c-shadow);
+}
+
+.ach-card {
+  position: relative;
+  border: 3px solid var(--c-panel);
+  background: var(--c-bg-2);
+  padding: 10px 34px 10px 12px;
+  min-height: 68px;
+}
+.ach-card.earned {
+  border-color: var(--c-gold);
+  background: rgba(255, 205, 117, 0.08);
+  box-shadow: inset 0 0 14px rgba(255, 205, 117, 0.16);
+}
+.ach-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--c-text-dim);
+  font-family: 'PixelText', monospace;
+}
+.ach-card.earned .ach-icon {
+  color: var(--c-gold);
+  text-shadow: 0 0 8px rgba(255, 205, 117, 0.7);
+}
+.ach-name {
+  font-family: 'PixelTitle', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--c-text);
+  margin: 0 0 6px;
+  line-height: 1.3;
+}
+.ach-card.earned .ach-name { color: var(--c-gold); }
+.ach-card.locked .ach-name { color: var(--c-text-dim); }
+
+.ach-desc {
+  font-size: 11px;
+  color: var(--c-text-dim);
+  line-height: 1.4;
+  margin: 0 0 6px;
+}
+.ach-prog {
+  font-family: 'PixelText', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--c-text-dark);
+}
+.ach-card.earned .ach-prog { color: var(--c-gold); }
+
+/* кнопки на финальном экране — в ряд */
+.end-buttons {
+  display: flex;
+  gap: 14px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.end-buttons .btn {
+  margin-top: 0;
 }
 
 /* ============================================================
@@ -772,14 +963,16 @@ h1 .blue-word {
 
     <!-- ============ ЭКРАН 2: КАРТА СНОВ ============ -->
     <div class="screen" id="mapScreen">
+      <button class="settings-btn ach-btn" id="achBtnMap" title="Достижения">🏆</button>
+      <button class="settings-btn" id="settingsBtnMap" title="Настройки">⚙</button>
       <div class="map-inner">
         <h2>КАРТА СНОВ</h2>
         <p class="map-sub">Четыре страха — четыре сна. Уровни открываются по порядку.</p>
         <div class="levels" id="levelList"></div>
         <div class="map-foot">
-          <span id="mapHearts"></span>
-          <span id="mapFrag"></span>
-          <span id="mapAch"></span>
+          <span class="map-stat" id="mapPerfect"></span>
+          <span class="map-stat" id="mapFrag"></span>
+          <span class="map-stat" id="mapAch"></span>
         </div>
       </div>
     </div>
@@ -788,8 +981,8 @@ h1 .blue-word {
     <div class="screen" id="gameScreen">
       <canvas id="cv" width="960" height="540"></canvas>
       <button class="pause-btn" id="pauseBtn" title="Пауза (ESC)">❚❚</button>
-      <button class="pause-btn skip-btn" id="skipBtn"
-              title="DEBUG: пропустить фазу">»</button>
+      <button class="pause-btn hint-btn" id="hintBtn"
+              title="Подсказка (H)">💡</button>
       <div class="hint-box" id="hintBox"></div>
       <div class="pause-overlay" id="pauseOverlay">
         <div class="pause-panel">
@@ -823,13 +1016,17 @@ h1 .blue-word {
         <p>Экзамен сдан. В зачётке — «5».</p>
         <p>А ведь это был не сон. Просто он очень устал.</p>
         <p class="end-stat" id="endStat"></p>
-        <button class="btn" id="btnRestart">ЗАНОВО</button>
+        <div class="end-buttons">
+          <button class="btn" id="btnShowAchievements">🏆 ДОСТИЖЕНИЯ</button>
+          <button class="btn" id="btnRestart">ЗАНОВО</button>
+        </div>
       </div>
     </div>
 
     <!-- ============ ЭКРАН 5: СЮЖЕТ (визуальная новелла) ============ -->
     <div class="screen" id="storyScreen">
       <canvas id="storyCv" width="960" height="540"></canvas>
+      <button class="settings-btn" id="settingsBtnStory" title="Настройки">⚙</button>
       <button class="story-skip" id="storySkip" title="Пропустить всё (пробел)">
         ПРОПУСТИТЬ ▸▸
       </button>
@@ -847,6 +1044,36 @@ h1 .blue-word {
     </div>
     <div id="fade"></div>
     <div id="achievement"></div>
+
+    <!-- ============ МОДАЛКА НАСТРОЕК (для карты и сюжета) ============ -->
+    <div class="pause-overlay" id="settingsOverlay">
+      <div class="pause-panel">
+        <h3>НАСТРОЙКИ</h3>
+
+        <div class="volume-row">
+          <label class="vol-label" for="volSfxSet">🔊 Звуки</label>
+          <input type="range" id="volSfxSet" class="vol-slider" min="0" max="100" value="100">
+          <span class="vol-val" id="volSfxSetVal">100</span>
+        </div>
+        <div class="volume-row">
+          <label class="vol-label" for="volBgmSet">🎵 Музыка</label>
+          <input type="range" id="volBgmSet" class="vol-slider" min="0" max="100" value="100">
+          <span class="vol-val" id="volBgmSetVal">100</span>
+        </div>
+
+        <button class="pbtn" id="btnCloseSettings">Закрыть</button>
+      </div>
+    </div>
+
+    <!-- ============ МОДАЛКА ДОСТИЖЕНИЙ ============ -->
+    <div class="pause-overlay" id="achievementsOverlay">
+      <div class="pause-panel ach-panel">
+        <h3>ДОСТИЖЕНИЯ</h3>
+        <p class="ach-progress-line" id="achProgress">Собрано: 0 / 9</p>
+        <div class="ach-list" id="achList"></div>
+        <button class="pbtn" id="btnCloseAchievements">Закрыть</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -870,6 +1097,15 @@ function maxFragsFor(level) {
   return (v === undefined) ? 5 : v;
 }
 
+// Максимум сердец на карте снов для каждого уровня.
+// 3 уровень длиннее по механике, но у него только 2 «жизненные» фазы (вопросы + лабиринт),
+// а урон снимается только в фазе вопросов — поэтому MAX = 2.
+const MAX_HEARTS_BY_LEVEL = [3, 3, 2, 3];
+
+function maxHeartsFor(level) {
+  const v = MAX_HEARTS_BY_LEVEL[level - 1];
+  return (v === undefined) ? 3 : v;
+}
 const G = {
   mode: 'loading',
   inStory: false,
@@ -891,7 +1127,9 @@ const G = {
   invuln: 0,
   keys: {},
   time: 0,
-  achievements: []
+  achievements: [],
+  lostPerPhase: {},                              // { 'l1-p1': 1, 'l2-p0': 1, ... } — метка «в фазе ошибался»
+  levelHearts: [null, null, null, null]          // null = уровень не пройден (рисуем пустые сердца)
 };
 
 const LEVEL_META = [
@@ -1923,6 +2161,7 @@ resize();
 function togglePause() {
   if (G.mode !== 'game' || G.paused) return;
   G.menuPaused = !G.menuPaused;
+  if (G.menuPaused) playSound('knopka', 0.5);
   pauseOverlay.classList.toggle('show', G.menuPaused);
 }
 function closePause() {
@@ -1936,29 +2175,80 @@ document.getElementById('btnHint').addEventListener('click', function () {
   closePause();
   showHint();
 });
-/* DEBUG: пропуск фазы */
-document.getElementById('skipBtn').addEventListener('click', function () {
-  if (!DEBUG) return;
+/* Кнопка подсказки — слева от паузы, вызывает showHint() без открытия паузы */
+document.getElementById('hintBtn').addEventListener('click', function () {
   if (G.mode !== 'game' || !activeLevel) return;
   if (G.paused || G.menuPaused || G.inStory) return;
-  if (typeof activeLevel.skipPhase === 'function') {
-    activeLevel.skipPhase();
-  } else {
-    levelComplete();
-  }
+  showHint();
 });
+
+/* ============================================================
+   ЧИТ-РЕЖИМ (только при DEBUG = true):
+
+     Ctrl + Shift + X   — пропустить текущую фазу в игре
+     Ctrl + Shift + U   — открыть все 4 уровня на карте снов
+   ============================================================ */
+window.addEventListener('keydown', function (e) {
+  if (!DEBUG) return;
+  if (!e.ctrlKey || !e.shiftKey) return;
+
+  // --- пропуск фазы ---
+  if (e.code === 'KeyX') {
+    if (G.mode !== 'game' || !activeLevel) return;
+    if (G.paused || G.menuPaused || G.inStory) return;
+    e.preventDefault();
+    if (typeof activeLevel.skipPhase === 'function') {
+      activeLevel.skipPhase();
+    } else {
+      levelComplete();
+    }
+    return;
+  }
+
+  // --- открыть все уровни ---
+  if (e.code === 'KeyU') {
+    if (G.mode !== 'map') return;         // работает только на карте снов
+    e.preventDefault();
+    G.maxUnlocked = 4;
+    playSound('knopka', 0.5);
+    updateMap();
+    return;
+  }
+}, { passive: false });
 document.getElementById('btnRestartLvl').addEventListener('click', function () {
   closePause();
   G.hearts = 3;
   goLevel(G.currentLevel, true);
 });
+
+/* Выйти на карту снов из паузы */
+document.getElementById('btnExit').addEventListener('click', function () {
+  playSound('knopka', 0.5);
+  closePause();
+  fadeTo(function () {
+    G.mode = 'map';
+    G.paused = false;
+    G.menuPaused = false;
+    activeLevel = null;
+    showScreen('mapScreen');
+    updateMap();
+  });
+});
 /* ============================================================
    РЕГУЛИРОВКА ГРОМКОСТИ (слайдеры в паузе, запоминаем в localStorage)
    ============================================================ */
-const volSfxEl    = document.getElementById('volSfx');
-const volBgmEl    = document.getElementById('volBgm');
-const volSfxValEl = document.getElementById('volSfxVal');
-const volBgmValEl = document.getElementById('volBgmVal');
+/* ============================================================
+   ГРОМКОСТЬ — общий блок (пауза + окно настроек)
+   Оба набора слайдеров синхронизированы и пишут в localStorage.
+   ============================================================ */
+const volSfxEl       = document.getElementById('volSfx');
+const volBgmEl       = document.getElementById('volBgm');
+const volSfxValEl    = document.getElementById('volSfxVal');
+const volBgmValEl    = document.getElementById('volBgmVal');
+const volSfxSetEl    = document.getElementById('volSfxSet');
+const volBgmSetEl    = document.getElementById('volBgmSet');
+const volSfxSetValEl = document.getElementById('volSfxSetVal');
+const volBgmSetValEl = document.getElementById('volBgmSetVal');
 
 // Подгружаем сохранённые значения (если есть)
 try {
@@ -1971,33 +2261,90 @@ try {
 function syncVolumeUI() {
   const s = Math.round(G.volumeSfx * 100);
   const b = Math.round(G.volumeBgm * 100);
-  if (volSfxEl)    volSfxEl.value = s;
-  if (volBgmEl)    volBgmEl.value = b;
-  if (volSfxValEl) volSfxValEl.textContent = s;
-  if (volBgmValEl) volBgmValEl.textContent = b;
+  if (volSfxEl)       volSfxEl.value = s;
+  if (volBgmEl)       volBgmEl.value = b;
+  if (volSfxValEl)    volSfxValEl.textContent = s;
+  if (volBgmValEl)    volBgmValEl.textContent = b;
+  if (volSfxSetEl)    volSfxSetEl.value = s;
+  if (volBgmSetEl)    volBgmSetEl.value = b;
+  if (volSfxSetValEl) volSfxSetValEl.textContent = s;
+  if (volBgmSetValEl) volBgmSetValEl.textContent = b;
 }
 
+function applySfxVolume(v) {
+  G.volumeSfx = Math.max(0, Math.min(1, v / 100));
+  try { localStorage.setItem('kj_sfx', G.volumeSfx); } catch (e) {}
+  syncVolumeUI();
+}
+function applyBgmVolume(v) {
+  G.volumeBgm = Math.max(0, Math.min(1, v / 100));
+  try { localStorage.setItem('kj_bgm', G.volumeBgm); } catch (e) {}
+  const a = SND['bgm'];
+  if (a) a.volume = 0.22 * G.volumeBgm;
+  syncVolumeUI();
+}
+
+// слайдеры в паузе уровня
 if (volSfxEl) {
   volSfxEl.addEventListener('input', function () {
-    G.volumeSfx = volSfxEl.value / 100;
-    if (volSfxValEl) volSfxValEl.textContent = volSfxEl.value;
-    try { localStorage.setItem('kj_sfx', G.volumeSfx); } catch (e) {}
-    // мгновенный отклик — короткий «тик»
+    applySfxVolume(+volSfxEl.value);
     playSound('tik2', 0.35);
   });
 }
 if (volBgmEl) {
   volBgmEl.addEventListener('input', function () {
-    G.volumeBgm = volBgmEl.value / 100;
-    if (volBgmValEl) volBgmValEl.textContent = volBgmEl.value;
-    try { localStorage.setItem('kj_bgm', G.volumeBgm); } catch (e) {}
-    // мгновенно применяем к уже играющей музыке
-    const a = SND['bgm'];
-    if (a) a.volume = 0.22 * G.volumeBgm;
+    applyBgmVolume(+volBgmEl.value);
+  });
+}
+// слайдеры в окне настроек
+if (volSfxSetEl) {
+  volSfxSetEl.addEventListener('input', function () {
+    applySfxVolume(+volSfxSetEl.value);
+    playSound('tik2', 0.35);
+  });
+}
+if (volBgmSetEl) {
+  volBgmSetEl.addEventListener('input', function () {
+    applyBgmVolume(+volBgmSetEl.value);
   });
 }
 
 syncVolumeUI();
+
+/* ============================================================
+   ОКНО НАСТРОЕК — открытие/закрытие (карта + сюжет)
+   ============================================================ */
+const settingsOverlay = document.getElementById('settingsOverlay');
+
+function openSettings() {
+  if (!settingsOverlay) return;
+  playSound('knopka', 0.5);
+  syncVolumeUI();
+  settingsOverlay.classList.add('show');
+}
+function closeSettings() {
+  if (!settingsOverlay) return;
+  settingsOverlay.classList.remove('show');
+  playSound('knopka', 0.5);
+}
+
+['settingsBtnMap', 'settingsBtnStory'].forEach(function (id) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('click', function (e) {
+    e.stopPropagation();   // на сюжете — чтобы клик не провалился в advanceStory
+    openSettings();
+  });
+});
+
+const btnCloseSettings = document.getElementById('btnCloseSettings');
+if (btnCloseSettings) btnCloseSettings.addEventListener('click', closeSettings);
+
+// клик по тёмному фону модалки — тоже закрывает
+if (settingsOverlay) {
+  settingsOverlay.addEventListener('click', function (e) {
+    if (e.target === settingsOverlay) closeSettings();
+  });
+}
 
 /* ============================================================
    7. ВВОД
@@ -2106,18 +2453,26 @@ cv.addEventListener('touchend', function (e) {
    8. ОБЩИЕ ИГРОВЫЕ ФУНКЦИИ
    ============================================================ */
 
-function damage() {
-  if (G.invuln > 0) return false;
+function damage(instant) {
+  if (!instant && G.invuln > 0) return false;
   if (G.hearts <= 0) return false;
   if (activeLevel && activeLevel.allowsDamage &&
       !activeLevel.allowsDamage()) return false;
 
   G.hearts--;
   G.flash = 1;
-  G.invuln = 1.5;
+  if (!instant) G.invuln = 1.5;      // invuln — только для «непрерывного» урона (бег, аркады)
   G.lostThisPhase = true;
   G.lostThisLevel = true;
 
+  // ---- Запись потери в фазу (для карты снов) ----
+  // Метка ставится ОДИН РАЗ за фазу, при первой же ошибке.
+  // Даже если потом фаза рестартанёт (3 сердца ушли) — метка не снимается.
+  if (activeLevel && typeof activeLevel.phase === 'number') {
+    const key = 'l' + G.currentLevel + '-p' + activeLevel.phase;
+    G.lostPerPhase[key] = 1;
+  }
+  // -----------------------------------------------
   // ---- Выбор звука по уровню и фазе ----
   const lvl = G.currentLevel;
   const ph  = activeLevel ? (activeLevel.phase || 0) : 0;
@@ -2140,7 +2495,13 @@ function damage() {
 
   if (G.hearts <= 0) {
     G.hearts = 0;
-    failPhase();
+    // Если уровень умеет сам решать, когда переходить к «тьме» — отдаём ему управление.
+    // Иначе (все остальные уровни) — как раньше, сразу failPhase().
+    if (activeLevel && typeof activeLevel.handleZeroHearts === 'function') {
+      activeLevel.handleZeroHearts();
+    } else {
+      failPhase();
+    }
   }
   return true;
 }
@@ -2176,6 +2537,26 @@ function levelComplete() {
   const n = G.currentLevel;
   G.completed[n - 1] = true;
   if (n + 1 <= 4 && G.maxUnlocked < n + 1) G.maxUnlocked = n + 1;
+
+  // ---- Пересчёт сердец уровня (для карты снов) ----
+  // 1) Считаем, в скольких фазах игрок хоть раз ошибался.
+  let lostSum = 0;
+  for (let p = 0; p < 3; p++) {
+    lostSum += G.lostPerPhase['l' + n + '-p' + p] || 0;
+  }
+  const maxH = maxHeartsFor(n);
+  const newHearts = Math.max(0, maxH - lostSum);
+
+  // 2) Если ачивка «БЕЗУПРЕЧНО N» уже получена — сердца фиксируются на максимуме,
+  //    даже если игрок потом перепрошёл с ошибками.
+  const perfectAchId = 'perfect_l' + n;
+  if (G.achievements.indexOf(perfectAchId) !== -1) {
+    G.levelHearts[n - 1] = maxH;
+  } else {
+    // 3) Иначе — результат последнего прохождения (может улучшаться или ухудшаться).
+    G.levelHearts[n - 1] = newHearts;
+  }
+  // --------------------------------------------------
 
   // Идеальное прохождение?
   if (!G.lostThisLevel) {
@@ -2247,6 +2628,11 @@ function goLevel(n, isRestart) {
       G.lostThisPhase = false;    // ← новая фаза
       G.lostThisLevel = false;    // ← новый заход уровня
       G.fragmentsByLevel[n - 1] = 0;    // ← обнуляем осколки этого уровня
+
+      // ← сброс меток потерь по фазам этого уровня
+      for (let p = 0; p < 3; p++) {
+        delete G.lostPerPhase['l' + n + '-p' + p];
+      }
       pauseOverlay.classList.remove('show');
       G.flash = 0;
       G.invuln = 0;
@@ -3149,7 +3535,7 @@ skipPhase: function () {
               l.vx += (l.x - x) * 8;
               l.vy += (l.y - y) * 8;
               l.flash = 0.5;
-              damage();
+              damage(true);     // ← instant: invuln не блокирует урон
             }
             return;
           }
@@ -3274,6 +3660,7 @@ skipPhase: function () {
             } else {
               e.x = e.homeX; e.y = e.homeY;
               playSound('hurt', 0.3);
+              damage(true);     // ← неправильная ячейка = минус сердце (без invuln)
             }
             return;
           }
@@ -4963,58 +5350,174 @@ const RIDDLES = [
    Фаза 3: заглушка
    ============================================================ */
 // Сколько вопросов считается "активными". Первые N — боевые,
-const LEVEL3_ACTIVE_COUNT = 10;
+const LEVEL3_ACTIVE_COUNT = 15;
 // Банк вопросов
 const LEVEL3_QUESTIONS = [
-  // ====== 1. Год основания (подтверждено: 1930) ======
-  { q: 'В каком году основан ТюмГУ?',
-    opts: ['1930', '1918', '1945', '1960'],
-    correct: 0 },
-
-  // ====== 2. Старое название ШКН (подтверждено: ИМИКН) ======
-  { q: 'Как раньше называлась ШКН?',
-    opts: ['ИМИКН', 'ИМКН', 'ФИТ', 'ИИТ'],
-    correct: 0 },
-
-  // ====== 3. Адрес главного корпуса (подтверждено: Володарского, 6) ======
-  { q: 'Где находится главный корпус ТюмГУ?',
-    opts: ['ул. Володарского, 6', 'ул. Ленина, 1', 'ул. Мира, 10', 'ул. Республики, 5'],
-    correct: 0 },
-
-  // ====== 4. Цвет бренда (подтверждено: синий) ======
-  { q: 'Какой цвет у бренда ТюмГУ?',
-    opts: ['Синий', 'Красный', 'Зелёный', 'Жёлтый'],
-    correct: 0 },
-
-  // ====== 5. Что такое Котоджем (подтверждено: конкурс) ======
-  { q: 'Что такое «Котоджем»?',
-    opts: ['Конкурс разработчиков игр', 'Фестиваль музыки', 'Спортивный турнир', 'Научная конференция'],
-    correct: 0 },
-
-  // ====== 6. Сколько лет университету (подтверждено: 95 в 2025) ======
-  { q: 'Сколько лет ТюмГУ в 2026 году?',
-    opts: ['96', '80', '85', '100'],
-    correct: 0 },
-
-  // ====== 7. Ректор (подтверждено: Романчук) ======
-  { q: 'Кто является ректором ТюмГУ?',
-    opts: ['Романчук', 'Иванов', 'Петров', 'Смирнов'],
-    correct: 0 },
-
-  // ====== 8. ЗАГЛУШКА — впиши вопрос сам(а) ======
-  { q: 'Вопрос8?',
-    opts: ['Верный', 'Неверный1', 'Неверный2', 'Неверный3'],
-    correct: 0 },
-
-  // ====== 9. ЗАГЛУШКА ======
-  { q: 'Вопрос9?',
-    opts: ['Верный', 'Неверный1', 'Неверный2', 'Неверный3'],
-    correct: 0 },
-
-  // ====== 10. ЗАГЛУШКА ======
-  { q: 'Вопрос10?',
-    opts: ['Верный', 'Неверный1', 'Неверный2', 'Неверный3'],
-    correct: 0 }
+  {
+    q: 'В каком году был основан Тюменский государственный университет (изначально как агропедагогический институт)?',
+    opts: ['1930', '1918', '1945', '1973'],
+    correct: 0,
+    explain: [
+      'Именно в этот год был открыт Тюменский агропедагогический институт, ставший первым вузом Тюмени и предтечей современного ТюмГУ.',
+      'В этом году открывались другие вузы страны, но первый вуз Тюмени появился чуть позже, во время индустриализации.',
+      'К моменту завершения Великой Отечественной войны вуз уже 15 лет активно работал и выпускал педагогов.',
+      'В 1973 году институт получил статус классического университета и стал называться ТюмГУ, но основан он был гораздо раньше.'
+    ]
+  },
+  {
+    q: 'В каком году Тюменский государственный педагогический институт получил статус классического университета (ТюмГУ)?',
+    opts: ['1973', '1930', '1991', '2005'],
+    correct: 0,
+    explain: [
+      'ТюмГУ стал 49-м университетом в стране. Первым ректором преобразованного университета в 1974 году стал профессор-физик Игорь Александров.',
+      'В 1930 году вуз только появился на свет, но тогда он находился в статусе агропедагогического института.',
+      'К моменту распада СССР ТюмГУ уже почти 20 лет работал в престижном статусе классического университета.',
+      'В начале 2000-х университет уже давно состоялся в своём статусе, активно развивался и строил новые корпуса.'
+    ]
+  },
+  {
+    q: 'Какой символ изображён в центре исторического фирменного знака (логотипа) ТюмГУ, который также упоминается в гимне университета?',
+    opts: ['Ладья', 'Соболь', 'Открытая книга', 'Глобус'],
+    correct: 0,
+    explain: [
+      'Ладья символизирует освоение Сибири и подчёркивает связь вуза с городом — дощаник впервые появился на историческом гербе Тюмени в 1785 году.',
+      'Соболь — частый геральдический символ сибирских регионов, но на логотипе ТюмГУ изображено именно речное судно.',
+      'Это классический символ многих образовательных учреждений, но ТюмГУ выбрал уникальный исторический знак своего региона — ладью-первопроходца.',
+      'Глобус символизирует глобальность, однако талисман вуза исторически отражает именно путь исследователей и освоение Сибири.'
+    ]
+  },
+  {
+    q: 'Как называется образовательная модель, которую ТюмГУ начал массово внедрять с 2017 года, позволяющая студентам самостоятельно выбирать значительную часть дисциплин?',
+    opts: ['ИОТ — Индивидуальные образовательные траектории', 'Система распределения профилей', 'Болонская система', 'Свободный деканат'],
+    correct: 0,
+    explain: [
+      'ТюмГУ стал одним из лидеров в России по внедрению этой системы, где студент может сам собирать свой учебный план из ядерных дисциплин, мейджора и элективов.',
+      'Такой системы не существует, правильное название подчёркивает именно «индивидуальный» маршрут каждого обучающегося.',
+      'Болонский процесс внедрялся по всей стране и подразумевал деление на бакалавриат и магистратуру, а не свободу выбора предметов внутри самого вуза.',
+      'Это выдуманное название. В ТюмГУ работает специальное «Управление индивидуальных образовательных траекторий».'
+    ]
+  },
+  {
+    q: 'Какое подразделение ТюмГУ было открыто в 2017 году в формате «гринфилд» (создано с нуля) и ведёт обучение по международным стандартам на русском и английском языках?',
+    opts: ['SAS — Школа перспективных исследований', 'X-BIO', 'Финансово-экономический институт', 'Политехническая школа'],
+    correct: 0,
+    explain: [
+      'Уникальный проект, где преподают профессора из разных стран мира, а студенты выбирают профиль обучения только после первого курса.',
+      'Это Институт экологической и сельскохозяйственной биологии ТюмГУ, он занимается биобезопасностью и научными исследованиями, а не мультидисциплинарным бакалавриатом.',
+      'ФЭИ — это классический и один из самых старых институтов университета, а не международный экспериментальный проект.',
+      'Она занимается подготовкой магистров-инженеров для нефтегазового сектора (концептуальный инжиниринг), а не образованием в стиле свободных искусств.'
+    ]
+  },
+  {
+    q: 'Как в ТюмГУ называется обязательный для всех студентов младших курсов блок базовых дисциплин (философия, цифровая культура, Россия и мир), формирующий универсальные компетенции?',
+    opts: ['Ядро / Core', 'Мейджор / Major', 'Майнор / Minor', 'Элективы / Electives'],
+    correct: 0,
+    explain: [
+      'Эта часть учебного плана объединяет первокурсников абсолютно всех направлений, давая им фундаментальную базу перед погружением в профильные предметы.',
+      'Мейджор — это обязательная профильная часть программы по выбранному студентом профессиональному направлению, а не общие предметы.',
+      'Майнор — это дополнительный профиль (связка из 4 дисциплин), который студент выбирает сам для расширения кругозора на 2–3 курсе.',
+      'Элективы — это одиночные дисциплины по выбору, в то время как базовый блок «Ядра» строго обязателен к изучению всеми.'
+    ]
+  },
+  {
+    q: 'В 2021 году ТюмГУ открыл первый в России карбоновый полигон для мониторинга парниковых газов. На базе какой биостанции он расположен?',
+    opts: ['«Озеро Кучак»', '«Максимиха»', '«Байкальская»', '«Беломорская»'],
+    correct: 0,
+    explain: [
+      'Именно там, на базе биостанции ТюмГУ в Нижнетавдинском районе, был запущен пилотный проект по мониторингу углеродного баланса при участии Минобрнауки РФ.',
+      'Это база практики другого университета, а не биостанция ТюмГУ для карбонового полигона.',
+      'Байкал находится слишком далеко от Тюмени. Полигон Западно-Сибирского НОЦ был открыт в Тюменской области.',
+      'Это известная биологическая станция МГУ на Белом море, а не объект Тюменского госуниверситета.'
+    ]
+  },
+  {
+    q: 'В какую федеральную программу стратегического академического лидерства ТюмГУ вошёл как победитель в престижном треке «Исследовательское лидерство»?',
+    opts: ['Программа «Приоритет 2030»', 'Проект «5-100»', 'Программа «Университеты России»', 'Национальный проект «Образование»'],
+    correct: 0,
+    explain: [
+      'Это масштабная государственная программа, в которой ТюмГУ подтвердил свой статус ведущего исследовательского центра страны и получает ежегодные гранты на науку.',
+      'Эта программа действительно существовала и ТюмГУ был её активным участником, но она завершилась в 2020 году, уступив место новой инициативе.',
+      'Такой программы не существует в современном формате государственных программ поддержки высшего образования.',
+      'Это огромный общий нацпроект, но специальная грантовая программа финансирования лучших вузов называется именно «Приоритет 2030».'
+    ]
+  },
+  {
+    q: 'Кто стал первым ректором ТюмГУ после того, как педагогический институт был преобразован в классический университет?',
+    opts: ['Игорь Александров', 'Валерий Фальков', 'Геннадий Чеботарёв', 'Геннадий Куцев'],
+    correct: 0,
+    explain: [
+      'Доктор физико-математических наук, профессор, назначенный ректором в 1974 году. При нём в вузе появились первые ЭВМ и открылись новые факультеты.',
+      'Он стал ректором гораздо позже, в 2013 году, и успешно руководил процессами модернизации вуза вплоть до назначения федеральным министром.',
+      'Был ректором ТюмГУ с 2007 по 2013 год, а также много лет занимал почётную должность президента университета.',
+      'Был ректором в 1981–1989 и 1992–2007 годах. Внёс колоссальный вклад в развитие университета, но самым первым ректором ТюмГУ не был.'
+    ]
+  },
+  {
+    q: 'Какая официальная англоязычная аббревиатура используется для обозначения Тюменского государственного университета и фигурирует в адресе его официального сайта?',
+    opts: ['UTMN', 'TSU', 'TYUMSU', 'TSTU'],
+    correct: 0,
+    explain: [
+      'Сокращение от University of Tyumen. Оно используется в домене сайта вуза (utmn.ru) и во всех официальных международных профилях.',
+      'Эта аббревиатура прочно и официально закреплена за Томским государственным университетом — Tomsk State University.',
+      'Хотя это звучит как прямой перевод русского сокращения «ТюмГУ», официально на английском языке используется более короткая форма UTMN.',
+      'Это аббревиатура технических университетов — например, Тюменского индустриального до его переименования или Тамбовского государственного технического университета.'
+    ]
+  },
+  {
+    q: 'Под каким названием вуз прошёл годы Великой Отечественной войны, когда его здания стали госпиталями, а многие студенты и преподаватели ушли на фронт?',
+    opts: ['Тюменский государственный педагогический институт', 'Тюменский учительский институт', 'Тюменский агропедагогический институт', 'Тюменский государственный университет'],
+    correct: 0,
+    explain: [
+      'Агропедагогический институт был переименован в педагогический ещё в 1934 году и проносил это имя почти 40 лет, вплоть до 1973 года.',
+      'Учительские институты (с двухлетним сроком обучения) существовали в СССР, но ТюмГУ уже имел более высокий статус педагогического института с полным циклом подготовки.',
+      'Так он назывался исключительно с момента своего основания в 1930 году и до реорганизации в 1934 году.',
+      'Статус классического университета был получен только в 1973 году, спустя почти три десятилетия после окончания войны.'
+    ]
+  },
+  {
+    q: 'Какой исследовательский институт ТюмГУ, созданный в 2017 году, специализируется на биобезопасности, акарологии (науке о клещах) и защите растений?',
+    opts: ['X-BIO — Институт экологической и сельскохозяйственной биологии', 'SAS', 'Институт химии', 'НИИ Экологии'],
+    correct: 0,
+    explain: [
+      'Институт объединяет сильных учёных-исследователей и выпускает статьи в ведущих мировых научных журналах, специализируясь на продовольственной и биологической безопасности.',
+      'Это Школа перспективных исследований, она ориентирована на социально-гуманитарные науки и свободные искусства, а не на естественные науки и биологию.',
+      'Он занимается фундаментальными и прикладными химическими исследованиями, а не специализированной сельскохозяйственной биологией и изучением паразитов.',
+      'Такого отдельного института в современной структуре ТюмГУ нет, основная современная биологическая и экологическая повестка сосредоточена в X-BIO.'
+    ]
+  },
+  {
+    q: 'Базовой организацией и одним из главных инициаторов какого научно-образовательного центра (НОЦ) мирового уровня является ТюмГУ?',
+    opts: ['Западно-Сибирский межрегиональный НОЦ', 'Уральский НОЦ', 'Сибирский НОЦ', 'Арктический НОЦ'],
+    correct: 0,
+    explain: [
+      'Этот НОЦ объединяет усилия Тюменской области, ХМАО-Югры и ЯНАО для решения глобальных задач науки, добычи ресурсов и экологии.',
+      'Уральский межрегиональный НОЦ «Передовые производственные технологии и материалы» базируется в Екатеринбурге, а Тюмень создала свой собственный центр.',
+      'Такой центр обычно ассоциируется с Томском или Новосибирском, Тюменский же носит название именно Западно-Сибирского.',
+      'Несмотря на наличие арктической повестки в исследованиях ТюмГУ, сам центр называется по широкому географическому региону Западной Сибири.'
+    ]
+  },
+  {
+    q: 'Какой масштабный инфраструктурный проект реализуется в Тюмени (при активном участии ТюмГУ) для создания новой суперсовременной среды для проживания и учёбы студентов до 2028 года?',
+    opts: ['Межвузовский кампус мирового уровня', 'Наукоград «Тюмень-2»', 'Технологическая долина «Сибирь»', 'Иннополис Тюмень'],
+    correct: 0,
+    explain: [
+      'В центре Тюмени строится гигантский кампус, который объединит студентов разных вузов, предоставит новые лаборатории, технопарк, спорткомплексы и современные общежития.',
+      'Такого проекта не существует. Наукограды — это статус целых городов с высоким градообразующим научным потенциалом, таких как Кольцово или Обнинск.',
+      'В России строятся технологические долины (ИНТЦ), но крупнейший тюменский проект для студентов официально называется Межвузовским кампусом.',
+      'Иннополис — это самостоятельный IT-город федерального значения в Республике Татарстан, а в Тюмени возводят именно студенческий межвузовский кампус.'
+    ]
+  },
+  {
+    q: 'Кто из федеральных министров Правительства РФ (назначенный в 2020 и переназначенный в 2024 году) является выпускником ТюмГУ и руководил университетом в качестве ректора с 2013 по 2020 год?',
+    opts: ['Валерий Фальков', 'Владимир Якушев', 'Сергей Кравцов', 'Александр Моор'],
+    correct: 0,
+    explain: [
+      'Выпускник юридического факультета ТюмГУ. Он прошёл путь от ассистента кафедры до ректора вуза, а затем стал Министром науки и высшего образования Российской Федерации.',
+      'Он является почётным профессором ТюмГУ и известным политиком, долгое время руководившим Тюменской областью, но ректором университета он никогда не был.',
+      'Он занимает пост Министра просвещения РФ (отвечает за школы) и не является ни выпускником, ни бывшим ректором ТюмГУ.',
+      'Действующий Губернатор Тюменской области, успешный выпускник ТюмГУ (окончил экономический факультет), но он не был ректором и не работает федеральным министром.'
+    ]
+  }
 ];
 
 /* ============================================================
@@ -5097,6 +5600,7 @@ function Level3() {
     transT: 0,
     transText: '',
     done: false,
+    waitingForFail: false,   // true = игрок уже потерял все сердца и ждёт клика, чтобы «проснуться»
 
     /* ---------- ФАЗА 1: ВОПРОСЫ ---------- */
     activeQuestions: [],
@@ -5132,6 +5636,7 @@ function Level3() {
       this.transT = 0;
       this.transText = '';
       this.hintT = 4;
+      this.waitingForFail = false;
 
       const available = LEVEL3_QUESTIONS.slice(0, LEVEL3_ACTIVE_COUNT);
       // Fisher-Yates
@@ -5141,7 +5646,23 @@ function Level3() {
         available[i] = available[j];
         available[j] = tmp;
       }
-      this.activeQuestions = available.slice(0, 3);
+      // Берём 3 случайных вопроса и перемешиваем в каждом варианты ответа
+      this.activeQuestions = available.slice(0, 3).map(function (qq) {
+        // строим массив индексов [0,1,2,3] и мешаем его
+        const idx = [];
+        for (let k = 0; k < qq.opts.length; k++) idx.push(k);
+        for (let k = idx.length - 1; k > 0; k--) {
+          const j = Math.floor(Math.random() * (k + 1));
+          const t = idx[k]; idx[k] = idx[j]; idx[j] = t;
+        }
+        // по перемешанным индексам пересобираем opts/explain/correct
+        return {
+          q: qq.q,
+          opts:    idx.map(function (i) { return qq.opts[i]; }),
+          explain: idx.map(function (i) { return qq.explain[i]; }),
+          correct: idx.indexOf(qq.correct)
+        };
+      });
       this.currentQ = 0;
       this.msg = '';
       this.msgT = 0;
@@ -5195,9 +5716,47 @@ function Level3() {
     /* ============================================================
        ФАЗА 1: ВОПРОСЫ
        ============================================================ */
-    btnRect: function (i) {
-      const w = 600, h = 45;
-      return { x: (W - w) / 2, y: 265 + i * 55, w: w, h: h };
+    /* Раскладка 4 кнопок вариантов ответа.
+       Возвращает массив из 4 объектов { x, y, w, h, baseH, expanded }.
+       Если ответ дан — выбранная панель растёт, а если ответ неверный,
+       то ещё и правильная растёт (чтобы было видно пояснение). */
+    layoutButtons: function () {
+      const BTN_W   = 720;
+      const BTN_H   = 42;    // обычная высота кнопки
+      const EXPAND  = 46;    // на сколько раскрывается панель (место под пояснение)
+      const GAP     = 6;
+      const START_Y = 218;   // старт — ниже кнопок паузы/подсказки в углу
+
+      const chosen  = this.chosenAnswer;
+      const correct = this.activeQuestions[this.currentQ]
+        ? this.activeQuestions[this.currentQ].correct
+        : -1;
+
+      // кто раскрывается
+      const expanded = {};
+      if (chosen >= 0) {
+        expanded[chosen] = true;
+        if (!this.answerIsCorrect && correct >= 0 && correct !== chosen) {
+          expanded[correct] = true;
+        }
+      }
+
+      const result = [];
+      let y = START_Y;
+      for (let i = 0; i < 4; i++) {
+        const isExp = !!expanded[i];
+        const h = isExp ? (BTN_H + EXPAND) : BTN_H;
+        result.push({
+          x: (W - BTN_W) / 2,
+          y: y,
+          w: BTN_W,
+          h: h,
+          baseH: BTN_H,
+          expanded: isExp
+        });
+        y += h + GAP;
+      }
+      return result;
     },
 
     answer: function (idx) {
@@ -5221,6 +5780,12 @@ function Level3() {
         this.msgT = 1.5;
         damage();
       }
+    },
+
+    /* Вызывается из damage(), когда сердце ушло в 0.
+       Не уходим в «тьму» сразу — ждём клика игрока, чтобы он успел прочитать пояснения. */
+    handleZeroHearts: function () {
+      this.waitingForFail = true;
     },
 
     nextQuestion: function () {
@@ -5351,11 +5916,9 @@ function Level3() {
       if (this.answerFlash > 0) this.answerFlash -= dt;
       if (G.invuln > 0) G.invuln -= dt;
 
-      // вопросы
-      if (this.phase === 0 && this.chosenAnswer >= 0 && this.answerFlash <= 0) {
-        if (this.answerIsCorrect) this.nextQuestion();
-        else this.chosenAnswer = -1;
-      }
+      // ФАЗА 1: вопросы.
+      // Переход к следующему вопросу — только по клику игрока (см. onPointerDown).
+      // Авто-перехода больше нет.
 
       // лабиринт
       if (this.phase === 1) this.updateMaze(dt);
@@ -5421,9 +5984,22 @@ function Level3() {
 
     onPointerDown: function (x, y) {
       if (this.phase === 0) {
-        if (this.chosenAnswer >= 0) return;
-        for (let i = 0; i < 4; i++) {
-          const b = this.btnRect(i);
+        // Ответ уже дан → по клику в любое место идём дальше:
+        //   - если сердца кончились → уходим в «тьму» через failPhase()
+        //   - иначе → следующий вопрос
+        if (this.chosenAnswer >= 0) {
+          if (this.waitingForFail) {
+            this.waitingForFail = false;
+            failPhase();
+          } else {
+            this.nextQuestion();
+          }
+          return;
+        }
+        // Иначе — проверяем попадание в один из вариантов
+        const rects = this.layoutButtons();
+        for (let i = 0; i < rects.length; i++) {
+          const b = rects[i];
           if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
             this.answer(i);
             return;
@@ -5450,39 +6026,33 @@ function Level3() {
     drawQuestions: function (c) {
       drawBackground(c, 'bg_corridor', '#0a1024', '#05080f');
 
+      // затемнение под картинку-фон (потом подставишь свою)
       const g = c.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, 'rgba(0,0,0,0.55)');
-      g.addColorStop(1, 'rgba(0,0,0,0.8)');
+      g.addColorStop(1, 'rgba(0,0,0,0.85)');
       c.fillStyle = g;
       c.fillRect(0, 0, W, H);
 
-      // охранник — фон
-      c.fillStyle = 'rgba(60,70,120,0.35)';
-      rr(c, 370, 76, 220, 100, 14); c.fill();
-      c.strokeStyle = 'rgba(74,99,184,0.55)';
-      c.lineWidth = 2;
-      rr(c, 370, 76, 220, 100, 14); c.stroke();
-      c.fillStyle = 'rgba(148,176,194,0.55)';
-      c.font = 'bold 14px "PixelText", Verdana';
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      c.fillText('ОХРАННИК', 480, 126);
-      c.textBaseline = 'alphabetic';
-
+      // счётчик вопроса — под HUD
       c.fillStyle = '#7ff0ff';
       c.font = 'bold 16px "PixelTitle", Verdana';
       c.textAlign = 'center';
-      c.fillText('ВОПРОС ' + (this.currentQ + 1) + ' / 3', W / 2, 195);
+      c.textBaseline = 'middle';
+      c.fillText('ВОПРОС ' + (this.currentQ + 1) + ' / 3', W / 2, 140);
+      c.textBaseline = 'alphabetic';
 
       const q = this.activeQuestions[this.currentQ];
       if (!q) return;
 
       c.fillStyle = '#dfe6ff';
-      c.font = 'bold 22px "PixelText", Verdana';
-      wrapText(c, '«' + q.q + '»', W / 2, 230, 800, 30);
+      c.font = 'bold 19px "PixelText", Verdana';
+      c.textAlign = 'center';
+      wrapText(c, '«' + q.q + '»', W / 2, 172, 860, 24);
+
+      const rects = this.layoutButtons();
 
       for (let i = 0; i < 4; i++) {
-        const b = this.btnRect(i);
+        const b = rects[i];
         let bgColor = '#182450';
         let borderColor = '#4a63b8';
 
@@ -5493,19 +6063,75 @@ function Level3() {
           bgColor = '#1c5a30'; borderColor = '#4fe0a0';
         }
 
+        // основная плашка
         c.fillStyle = bgColor;
-        rr(c, b.x, b.y, b.w, b.h, 10); c.fill();
+        rr(c, b.x, b.y, b.w, b.baseH, 10); c.fill();
         c.strokeStyle = borderColor;
         c.lineWidth = 3;
         rr(c, b.x, b.y, b.w, b.h, 10); c.stroke();
 
+        // текст варианта — по центру верхней «обычной» части
         c.fillStyle = '#dfe6ff';
-        c.font = '20px "PixelText", Verdana';
+        c.font = '18px "PixelText", Verdana';
         c.textAlign = 'center';
         c.textBaseline = 'middle';
-        c.fillText(q.opts[i], b.x + b.w / 2, b.y + b.h / 2 + 2);
+        c.fillText(q.opts[i], b.x + b.w / 2, b.y + b.baseH / 2 + 2);
+
+        // раскрытие с пояснением
+        if (b.expanded) {
+          const expY = b.y + b.baseH;
+          const expH = b.h - b.baseH;
+
+          c.fillStyle = 'rgba(0,0,0,0.30)';
+          rr(c, b.x + 3, expY - 4, b.w - 6, expH + 1, 6); c.fill();
+
+          c.strokeStyle = 'rgba(255,255,255,0.10)';
+          c.lineWidth = 1;
+          c.beginPath();
+          c.moveTo(b.x + 20, expY - 3);
+          c.lineTo(b.x + b.w - 20, expY - 3);
+          c.stroke();
+
+          c.fillStyle = (this.chosenAnswer === i && this.answerIsCorrect)
+            ? '#b8f0c8'
+            : (i === q.correct)
+              ? '#b8f0c8'
+              : '#f0b8c8';
+
+          c.font = '13px "PixelText", Verdana';
+          c.textAlign = 'left';
+          c.textBaseline = 'top';
+          wrapText(
+            c,
+            q.explain[i],
+            b.x + 22,
+            expY + 6,
+            b.w - 44,
+            18
+          );
+          c.textBaseline = 'alphabetic';
+        }
       }
-      c.textBaseline = 'alphabetic';
+
+      // мягкая пульсирующая подсказка внизу — когда ответ уже дан
+      // Подсказка «кликни, чтобы продолжить» — у нижнего края с отступом 22px.
+      // Прячем, пока на экране сообщение «Верно!» / «Не то» (msgT > 0),
+      // чтобы они не наезжали друг на друга.
+      if (this.chosenAnswer >= 0 && this.msgT <= 0) {
+        const pulse = 0.55 + 0.45 * Math.abs(Math.sin(this.t * 3));
+        const txt = this.waitingForFail
+          ? '▶  КЛИКНИ, ЧТОБЫ ПРОСНУТЬСЯ'
+          : '▶  КЛИКНИ, ЧТОБЫ ПРОДОЛЖИТЬ';
+        c.save();
+        c.globalAlpha = pulse;
+        c.fillStyle = this.waitingForFail ? '#ff8a9a' : '#9fb6ff';
+        c.font = 'bold 14px "PixelText", Verdana';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(txt, W / 2, H - 22);
+        c.textBaseline = 'alphabetic';
+        c.restore();
+      }
 
       if (this.msgT > 0) {
         drawBottomHint(c, this.msg, this.msgT, this.msgCol);
@@ -6512,7 +7138,107 @@ function drawEnd(dt) {
 
 let lastT = 0;
 function loop(now) {
-  requestAnimationFrame(loop);
+/* ============================================================
+   ДОСТИЖЕНИЯ — рендер и открытие/закрытие
+   ============================================================ */
+const achievementsOverlay = document.getElementById('achievementsOverlay');
+
+function renderAchievements() {
+  const list = document.getElementById('achList');
+  const progLine = document.getElementById('achProgress');
+  if (!list) return;
+
+  list.innerHTML = '';
+  const total = getTotalFragments();
+  let earned = 0;
+
+  for (let i = 0; i < ACH_DEFS.length; i++) {
+    const a = ACH_DEFS[i];
+    const isEarned = G.achievements.indexOf(a.id) !== -1;
+    if (isEarned) earned++;
+
+    // иконка по типу
+    let iconEarned = '★', iconLocked = '☆';
+    if (a.kind === 'level_perfect') { iconEarned = '❤'; iconLocked = '♡'; }
+    else if (a.kind === 'all_perfect') { iconEarned = '✨'; iconLocked = '✧'; }
+
+    // прогресс — только для ачивок по осколкам (у них есть .min)
+    let progText = '';
+    if (isEarned) {
+      progText = '✓ открыто';
+    } else if (a.min !== undefined) {
+      progText = Math.min(total, a.min) + ' / ' + a.min;
+    } else {
+      progText = 'не открыто';
+    }
+
+    const card = document.createElement('div');
+    card.className = 'ach-card ' + (isEarned ? 'earned' : 'locked');
+
+    const iconDiv = document.createElement('div');
+    iconDiv.className = 'ach-icon';
+    iconDiv.textContent = isEarned ? iconEarned : iconLocked;
+
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'ach-name';
+    nameDiv.textContent = a.name;
+
+    const descDiv = document.createElement('div');
+    descDiv.className = 'ach-desc';
+    descDiv.textContent = a.desc;
+
+    const progDiv = document.createElement('div');
+    progDiv.className = 'ach-prog';
+    progDiv.textContent = progText;
+
+    card.appendChild(iconDiv);
+    card.appendChild(nameDiv);
+    card.appendChild(descDiv);
+    card.appendChild(progDiv);
+    list.appendChild(card);
+  }
+
+  if (progLine) {
+    progLine.textContent = 'Собрано: ' + earned + ' / ' + ACH_DEFS.length;
+  }
+}
+
+function openAchievements() {
+  if (!achievementsOverlay) return;
+  playSound('knopka', 0.5);
+  renderAchievements();
+  achievementsOverlay.classList.add('show');
+}
+function closeAchievements() {
+  if (!achievementsOverlay) return;
+  playSound('knopka', 0.5);
+  achievementsOverlay.classList.remove('show');
+}
+
+// кнопка на карте
+const achBtnMap = document.getElementById('achBtnMap');
+if (achBtnMap) achBtnMap.addEventListener('click', function (e) {
+  e.stopPropagation();
+  openAchievements();
+});
+
+// кнопка на финале
+const btnShowAchievements = document.getElementById('btnShowAchievements');
+if (btnShowAchievements) btnShowAchievements.addEventListener('click', function (e) {
+  e.stopPropagation();
+  openAchievements();
+});
+
+// закрытие
+const btnCloseAch = document.getElementById('btnCloseAchievements');
+if (btnCloseAch) btnCloseAch.addEventListener('click', closeAchievements);
+if (achievementsOverlay) {
+  achievementsOverlay.addEventListener('click', function (e) {
+    if (e.target === achievementsOverlay) closeAchievements();
+  });
+}
+
+requestAnimationFrame(loop);
   if (!lastT) lastT = now;
   let dt = (now - lastT) / 1000;
   lastT = now;
@@ -6555,9 +7281,12 @@ function updateMap()
   for (let i = 0; i < 4; i++) {
     const n = i + 1;
     const meta = LEVEL_META[i];
-    const locked = !DEBUG && n > G.maxUnlocked;
+    const locked = n > G.maxUnlocked;
     const done = G.completed[i];
-    const perfect = G.levelPerfect['l' + n] === true;
+    // золотая рамка = «все сердечки заполнены по последнему прохождению»
+    const perfect = done &&
+      G.levelHearts[n - 1] !== null &&
+      G.levelHearts[n - 1] >= maxHeartsFor(n);
 
     const el = document.createElement('div');
     el.className = 'lvl';
@@ -6598,14 +7327,29 @@ function updateMap()
     // метка сердец для этого уровня
     const heartsDiv = document.createElement('div');
     heartsDiv.className = 'lvl-hearts';
-    if (perfect) {
-      heartsDiv.textContent = '❤❤❤';
-      heartsDiv.style.color = '#ff4d6d';
-    } else if (done) {
-      heartsDiv.textContent = '❤❤♡';
-      heartsDiv.style.color = 'rgba(255,110,140,0.6)';
+
+    const maxH = maxHeartsFor(n);        // 3 или 2 (для 3-го уровня)
+
+    if (done && G.levelHearts[n - 1] !== null) {
+      // показываем реальное число сердец по последнему прохождению
+      const heartsLeft = G.levelHearts[n - 1];
+      const full  = Math.floor(heartsLeft);
+      const empty = maxH - full;
+
+      let html = '';
+      for (let k = 0; k < full;  k++) html += '<span class="h-full">❤</span>';
+      for (let k = 0; k < empty; k++) html += '<span class="h-empty">♡</span>';
+      heartsDiv.innerHTML = html;
+
+      // если нигде не терял — ярко-красный цвет; если терял — приглушённый
+      heartsDiv.style.color = (heartsLeft >= maxH)
+        ? '#ff4d6d'
+        : 'rgba(255,110,140,0.75)';
     } else {
-      heartsDiv.textContent = '❤❤❤';
+      // уровень ещё не пройден — нейтральная заготовка
+      let html = '';
+      for (let k = 0; k < maxH; k++) html += '<span class="h-empty">♡</span>';
+      heartsDiv.innerHTML = html;
       heartsDiv.style.color = 'rgba(255,255,255,0.25)';
     }
 
@@ -6629,10 +7373,15 @@ function updateMap()
   let perfectCount = 0;
   for (let i = 1; i <= 4; i++) if (G.levelPerfect['l' + i]) perfectCount++;
 
-  document.getElementById('mapHearts').textContent = '★ ' + perfectCount + ' / 4';
-  document.getElementById('mapFrag').textContent = '◈ осколков: ' + getTotalFragments();
-  document.getElementById('mapAch').textContent = '★ ' + G.achievements.length + ' / ' + ACH_DEFS.length;
-}
+  document.getElementById('mapPerfect').innerHTML =
+    '<span class="ms-icon heart">❤</span> Идеально: <b>' + perfectCount + ' / 4</b>';
+
+  document.getElementById('mapFrag').innerHTML =
+    '<span class="ms-icon frag">◆</span> Осколков: <b>' + getTotalFragments() + '</b>';
+
+  document.getElementById('mapAch').innerHTML =
+    '<span class="ms-icon trophy">🏆</span> Достижения: <b>' +
+    G.achievements.length + ' / ' + ACH_DEFS.length + '</b>';}
 
 /* ============================================================
    19. ЗАПУСК
@@ -6658,17 +7407,27 @@ btnStart.addEventListener('click', function () {
 });
 
 btnRestart.addEventListener('click', function () {
+  // ==== Полный сброс прогресса ====
   G.hearts = 3;
   G.fragmentsByLevel = [0, 0, 0, 0];
   G.currentLevel = 1;
   G.maxUnlocked = 1;
   G.completed = [false, false, false, false];
+  G.levelPerfect = {};                     // ← «Идеально: X / 4»
+  G.levelHearts = [null, null, null, null]; // ← сердечки на карточках
+  G.lostPerPhase = {};                     // ← метки потерь по фазам
+  G.achievements = [];                     // ← ачивки
+  G.seenStory = {};                        // ← чтобы вступления уровней показались снова
+  G.seenWarn = {};                         // ← чтобы предупреждения показались снова
+
+  // ==== Сброс состояния «сейчас» ====
   G.paused = false;
   G.menuPaused = false;
-  G.achievements = [];
   G.flash = 0;
   G.invuln = 0;
+  G.keys = {};
   activeLevel = null;
+
   fadeTo(function () {
     G.mode = 'start';
     showScreen('startScreen');
@@ -6690,7 +7449,6 @@ loadAssets
     if (titleOverlay) titleOverlay.classList.add('ready');
     G.mode = 'start';
     showScreen('startScreen');
-    document.getElementById('skipBtn').style.display = DEBUG ? 'block' : 'none';
   }
 );
 
