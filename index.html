@@ -1295,17 +1295,15 @@ const STORY = {
   ]},
 
   after2: { slides: [
-    { label: 'Главный корпус.\nТурникет. Очередь.\nКот подбегает к дверям.',
+    { img: 'story_level3_1',
+      label: 'Главный корпус.\nТурникет. Очередь.\nКот подбегает к дверям.',
       text: 'И вот наконец — знакомое здание с колоннами. Экзамен уже начался. Надо успеть внутрь.' }
   ]},
 
   after3: { slides: [
-    { label: 'Кот входит в аудиторию 305.\nПарты. Доска.\nНо никого нет.',
-      text: 'Дверь поддалась. Охранник пропустил. Лабиринт отпустил.' },
-    { label: 'Кот входит в аудиторию 305.\nПарты. Доска.\nНо никого нет.',
-      text: 'Кот вошёл в аудиторию — и остановился. Никого. Только парты и доска.' },
-    { label: 'Кот садится за первую парту.\nДостаёт ручку.\nТишина звенит в ушах.',
-      text: 'Он сел за первую парту. Достал ручку. Положил перед собой зачётку. И тут тишина стала слишком громкой.' }
+    { img: 'bg_classroom',
+      label: 'Кот входит в аудиторию 305.\nПарты. Доска.\nНо никого нет.',
+      text: 'Дверь поддалась. Охранник пропустил. Лабиринт отпустил. \n\nКот вошёл в аудиторию — и остановился. Никого. Только парты и доска. \n\nОн сел за первую парту. Достал ручку. Положил перед собой зачётку. \n\nИ тут тишина стала слишком громкой.' }
   ]},
 
   after4: { slides: [
@@ -1404,7 +1402,7 @@ const LEVEL_HINTS = {
 const IMG_NAMES = [
   'cat_idle', 'cat_run_sheet', 'cat_jump', 'cat_sad', 'cat_happy', 'cat_sleep',
   'paper_good', 'paper_bad', 'puddle', 'bus', 'boss_grade',
-  'bg_room_night', 'bg_corridor', 'bg_street', 'bg_door',
+  'bg_room_night', 'bg_corridor', 'bg_street', 'bg_door', 'bg_dedus', 'bg_formula',
   'bg_classroom', 'bg_morning', 'heart', 'fragment', 'backpack_puzzle','road',
   'traffic_light', 'crowd', 'plt',
   'page_1', 'page_2', 'page_3', 'bg_catch','backpack', 'bg_subway',
@@ -7225,15 +7223,9 @@ function Level4() {
 
     /* ===================== DRAW ===================== */
     draw: function (c) {
-      drawBackground(c, 'bg_classroom', '#0c1024', '#05070f');
+      drawBackground(c, 'bg_dedus', '#0c1024', '#05070f');
       c.fillStyle = 'rgba(8, 12, 26, 0.5)';
       c.fillRect(0, 0, W, H);
-
-      // пол
-      c.fillStyle = '#101733';
-      c.fillRect(0, this.GROUND, W, H - this.GROUND);
-      c.fillStyle = '#1b2450';
-      c.fillRect(0, this.GROUND, W, 6);
 
       if (this.phase === 1) 
       {
@@ -7368,7 +7360,7 @@ function Level4() {
     // отрисовка фазы 3
     drawPhase3: function (c) {
       // фон и пол
-      drawBackground(c, 'bg_classroom', '#0c1024', '#05070f');
+      drawBackground(c, 'bg_dedus', '#0c1024', '#05070f');
       c.fillStyle = 'rgba(8, 12, 26, 0.5)';
       c.fillRect(0, 0, W, H);
 
